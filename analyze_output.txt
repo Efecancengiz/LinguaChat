@@ -1,0 +1,22 @@
+﻿Analyzing kendiuygulama...                                      
+
+   info - Don't use 'BuildContext's across async gaps - lib\screens\profile\edit_profile_screen.dart:59:13 - use_build_context_synchronously
+warning - Unused import: 'package:linguachat/app.dart' - test\widget_test.dart:3:8 - unused_import
+
+flutter : 2 issues found. (r
+an in 17.7s)
+At line:1 char:145
++ ... ::GetEnvironmentVariab
+le("Path","User"); flutter a
+nalyze 2>&1 | Out-F ...
++                           
+                   ~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2 iss  
+  ues found. (ran in 17.7   
+ s):String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 

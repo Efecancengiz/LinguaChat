@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMe(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function unchanged(keys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
+
+    function isParticipant(chatId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/directMessages/$(chatId))
+        && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(chatId)).data.participants;
+    }
+
+    // ---------------- USERS ----------------
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isMe(uid)
+        && request.resource.data.uid == uid
+        && (!( 'isPremium' in request.resource.data) || request.resource.data.isPremium == false)
+        && (!( 'premiumEndDate' in request.resource.data) || request.resource.data.premiumEndDate == null)
+        && (!( 'dailyVoiceMinutes' in request.resource.data) || request.resource.data.dailyVoiceMinutes == 0)
+        && (!( 'followersCount' in request.resource.data) || request.resource.data.followersCount == 0)
+        && (!( 'followingCount' in request.resource.data) || request.resource.data.followingCount == 0)
+        && (!( 'postsCount' in request.resource.data) || request.resource.data.postsCount == 0);
+      allow update: if isMe(uid)
+        && unchanged([
+          'uid',
+          'createdAt',
+          'isPremium',
+          'premiumEndDate',
+          'dailyVoiceMinutes',
+          'lastResetDate',
+          'followersCount',
+          'followingCount',
+          'postsCount',
+          'friendsSyncedV3'
+        ]);
+      allow delete: if isMe(uid);
+
+      match /followers/{followerId} {
+        allow read: if isSignedIn();
+        allow write: if isMe(uid) || isMe(followerId);
+      }
+      match /following/{followingId} {
+        allow read: if isSignedIn();
+        allow write: if isMe(uid) || isMe(followingId);
+      }
+    }
+
+    // ---------------- FRIENDS ----------------
+    match /friends/{uid}/userFriends/{friendId} {
+      allow read: if isMe(uid);
+      allow write: if isMe(uid);
+    }
+
+    // ---------------- FRIEND REQUESTS ----------------
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId);
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.fromUserId;
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId);
+      allow delete: if false;
+    }
+
+    // ---------------- ROOMS ----------------
+    match /rooms/{roomId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn()
+        && (
+          (resource.data.isCustom == true && resource.data.ownerId == request.auth.uid)
+          || (
+            resource.data.isCustom != true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'lastMessage',
+              'memberCount'
+            ])
+          )
+        );
+      allow delete: if isSignedIn()
+        && ('ownerId' in resource.data)
+        && resource.data.ownerId == request.auth.uid;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid;
+        allow update: if isSignedIn()
+          && resource.data.senderId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+
+    // ---------------- DIRECT MESSAGES ----------------
+    match /directMessages/{chatId} {
+      allow read: if isParticipant(chatId);
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.participants;
+      allow update: if isParticipant(chatId);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isParticipant(chatId);
+        allow create: if isParticipant(chatId)
+          && request.resource.data.senderId == request.auth.uid;
+        allow update: if isParticipant(chatId)
+          && resource.data.senderId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+
+    // ---------------- POSTS ----------------
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      match /likes/{uid} {
+        allow read: if isSignedIn();
+        allow create, delete: if isMe(uid);
+        allow update: if false;
+      }
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid;
+        allow update: if isSignedIn()
+          && resource.data.userId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+  }
+}

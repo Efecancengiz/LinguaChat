@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "657930323694",
+    "project_id": "linguachat-550b1",
+    "storage_bucket": "linguachat-550b1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:657930323694:android:833273907a2156112d55ff",
+        "android_client_info": {
+          "package_name": "com.linguachat.linguachat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS1UkyS85MpZxgYs03L--KjdrPb7NhAS8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

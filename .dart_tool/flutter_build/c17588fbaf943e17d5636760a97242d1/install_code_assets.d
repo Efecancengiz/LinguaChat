@@ -1,0 +1,1 @@
+ /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/flutter_build/c17588fbaf943e17d5636760a97242d1/native_assets.json:  /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/objective_c.dylib
