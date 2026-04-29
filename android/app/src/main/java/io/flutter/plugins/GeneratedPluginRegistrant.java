@@ -56,6 +56,11 @@ public final class GeneratedPluginRegistrant {
       Log.e(TAG, "Error registering plugin flutter_plugin_android_lifecycle, io.flutter.plugins.flutter_plugin_android_lifecycle.FlutterAndroidLifecyclePlugin", e);
     }
     try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin google_mobile_ads, io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin", e);
+    }
+    try {
       flutterEngine.getPlugins().add(new live.hms.hmssdk_flutter.HmssdkFlutterPlugin());
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin hmssdk_flutter, live.hms.hmssdk_flutter.HmssdkFlutterPlugin", e);
@@ -89,6 +94,11 @@ public final class GeneratedPluginRegistrant {
       flutterEngine.getPlugins().add(new com.tekartik.sqflite.SqflitePlugin());
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin sqflite_android, com.tekartik.sqflite.SqflitePlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.webviewflutter.WebViewFlutterPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin webview_flutter_android, io.flutter.plugins.webviewflutter.WebViewFlutterPlugin", e);
     }
   }
 }

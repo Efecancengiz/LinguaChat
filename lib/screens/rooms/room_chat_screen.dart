@@ -190,7 +190,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
@@ -206,8 +206,19 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       senderIsPremium: user.isPremium,
     );
 
-    _firestoreService.sendRoomMessage(widget.roomId, message);
     _messageController.clear();
+    try {
+      await _firestoreService.sendRoomMessage(widget.roomId, message);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mesaj gönderilemedi. Lütfen bağlantınızı kontrol edin.'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    }
   }
 
   void _showInviteFriendsSheet() {
@@ -466,15 +477,10 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
               child: const Icon(Icons.headset_mic_rounded, color: AppTheme.primary, size: 20),
             ),
             onPressed: () {
-               final user = context.read<AuthProvider>().user;
-               if (user != null && user.isPremium) {
-                 context.push(
-                   '/voice-room/${widget.roomId}',
-                   extra: {'name': widget.roomName},
-                 );
-               } else {
-                 context.push('/premium');
-               }
+              context.push(
+                '/voice-room/${widget.roomId}',
+                extra: {'name': widget.roomName},
+              );
             },
             tooltip: 'Sesli Odaya Katıl',
           ),

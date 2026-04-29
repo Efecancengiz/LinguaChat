@@ -240,7 +240,7 @@ class _DmChatScreenState extends State<DmChatScreen> {
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
@@ -256,8 +256,19 @@ class _DmChatScreenState extends State<DmChatScreen> {
       senderIsPremium: user.isPremium,
     );
 
-    _firestoreService.sendDmMessage(widget.chatId, message);
     _messageController.clear();
+    try {
+      await _firestoreService.sendDmMessage(widget.chatId, message);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mesaj gönderilemedi. Lütfen bağlantınızı kontrol edin.'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    }
   }
 
   @override

@@ -24,6 +24,7 @@ class VoiceRoomScreen extends StatefulWidget {
 
 class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   final HmsService _hmsService = HmsService();
+  late final VoiceRoomTimerProvider _timerProvider;
   bool _isMuted = false;
   bool _isConnecting = true;
   bool _isLeaving = false;
@@ -31,6 +32,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   @override
   void initState() {
     super.initState();
+    _timerProvider = context.read<VoiceRoomTimerProvider>();
     _initializeVoiceRoom();
   }
 
@@ -38,10 +40,9 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
     
-    final timerProvider = context.read<VoiceRoomTimerProvider>();
-    await timerProvider.initialize(user.uid);
+    await _timerProvider.initialize(user.uid);
 
-    if (!timerProvider.canJoinRoom()) {
+    if (!_timerProvider.canJoinRoom()) {
       if (mounted) {
         showDialog(
           context: context,
@@ -78,7 +79,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
       
       if (mounted) {
         setState(() => _isConnecting = false);
-        timerProvider.startTimer(
+        _timerProvider.startTimer(
           user.uid, 
           context, 
           _hmsService, 
@@ -97,8 +98,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
 
   @override
   void dispose() {
-    final timerProvider = context.read<VoiceRoomTimerProvider>();
-    timerProvider.stopTimer();
+    _timerProvider.stopTimer();
     if (!_isLeaving) {
       _hmsService.leaveChannel();
     }
@@ -110,9 +110,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     setState(() => _isLeaving = true);
     
     // Timer ve HMS işlemlerini await ile senkron şekilde sonlandır
-    if (mounted) {
-      context.read<VoiceRoomTimerProvider>().stopTimer();
-    }
+    _timerProvider.stopTimer();
     await _hmsService.leaveChannel();
     
     if (mounted) {

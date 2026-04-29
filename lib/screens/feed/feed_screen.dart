@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -861,8 +862,11 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                         final ts = c['createdAt'];
                         String timeStr = '';
                         if (ts != null) {
-                          final dt = (ts as dynamic).toDate() as DateTime;
-                          timeStr = timeago.format(dt, locale: 'tr');
+                          if (ts is Timestamp) {
+                            timeStr = timeago.format(ts.toDate(), locale: 'tr');
+                          } else {
+                            timeStr = 'Şimdi';
+                          }
                         }
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,

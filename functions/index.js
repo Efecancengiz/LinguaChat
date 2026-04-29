@@ -22,9 +22,13 @@ function getOneSignalConfig() {
 
 function generateManagementToken() {
   const accessKey = process.env.HMS_ACCESS_KEY;
-  const secretKey = process.env.HMS_SECRET;
+  // .env dosyasında HMS_SECRET veya HMS_APP_SECRET olarak tanımlanabilir
+  const secretKey = process.env.HMS_SECRET || process.env.HMS_APP_SECRET;
   if (!accessKey || !secretKey) {
-    throw new Error("Sunucuda 100ms API anahtarları (HMS_ACCESS_KEY, HMS_SECRET) eksik!");
+    throw new Error(
+      `Sunucuda 100ms API anahtarları eksik! ` +
+      `HMS_ACCESS_KEY=${accessKey ? 'OK' : 'EKSİK'}, HMS_SECRET=${secretKey ? 'OK' : 'EKSİK'}`
+    );
   }
   const payload = {
     access_key: accessKey,
@@ -103,8 +107,14 @@ exports.getOrCreateHmsRoom = functions.https.onCall(async (data, context) => {
     await roomRef.update({ hmsCode: targetCode, hmsRoomId });
     return { roomCode: targetCode };
   } catch (error) {
-    console.error("100ms Error:", error.response ? error.response.data : error.message);
-    throw new functions.https.HttpsError("internal", error.message);
+    // Axios API hatasından daha açıklayıcı mesaj üret
+    let errMsg = error.message;
+    if (error.response && error.response.data) {
+      const d = error.response.data;
+      errMsg = `100ms API hatası (${error.response.status}): ${d.message || JSON.stringify(d)}`;
+    }
+    console.error("getOrCreateHmsRoom hatası:", errMsg);
+    throw new functions.https.HttpsError("internal", errMsg);
   }
 });
 

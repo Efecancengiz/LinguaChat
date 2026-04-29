@@ -179,7 +179,8 @@ class _LoginScreenState extends State<LoginScreen>
                         if (value == null || value.isEmpty) {
                           return 'E-posta adresinizi girin';
                         }
-                        if (!value.contains('@')) {
+                        final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                        if (!emailRegex.hasMatch(value)) {
                           return 'Geçerli bir e-posta adresi girin';
                         }
                         return null;

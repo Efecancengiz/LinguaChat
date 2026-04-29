@@ -42,6 +42,32 @@ class FirestoreService {
     }
   }
 
+  Future<void> updateUserDisplayName(String uid, String oldName, String newName) async {
+    if (oldName == newName) return;
+    
+    final newUsernameRef = _firestore.collection('usernames').doc(newName);
+    final oldUsernameRef = _firestore.collection('usernames').doc(oldName);
+    
+    try {
+      await _firestore.runTransaction((txn) async {
+        final snap = await txn.get(newUsernameRef);
+        if (snap.exists) {
+          throw Exception('username-taken');
+        }
+        
+        // Yeni kullanıcı adını al ve eskisini sil
+        txn.set(newUsernameRef, {'uid': uid});
+        txn.delete(oldUsernameRef);
+        
+        // Kullanıcı belgesini güncelle
+        txn.update(_firestore.collection('users').doc(uid), {'displayName': newName});
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.updateUserDisplayName hata: $e');
+      rethrow;
+    }
+  }
+
   /// Arkadaş olmayan tüm kullanıcıları stream olarak döndürür (ağ ekranı için)
   Stream<List<UserModel>> getNonFriendsStream(String currentUserId) {
     // Önce arkadaş ID'lerini stream olarak al, ardından kullanıcıları filtrele
@@ -209,7 +235,7 @@ class FirestoreService {
 
   String _generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = Random();
+    final random = Random.secure();
     return String.fromCharCodes(Iterable.generate(
         6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
   }
@@ -644,11 +670,15 @@ class FirestoreService {
           .get();
 
       if (messagesSnapshot.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        for (var doc in messagesSnapshot.docs) {
-          batch.update(doc.reference, {'isRead': true});
+        const batchSize = 400;
+        final docs = messagesSnapshot.docs;
+        for (var i = 0; i < docs.length; i += batchSize) {
+          final batch = _firestore.batch();
+          for (var doc in docs.skip(i).take(batchSize)) {
+            batch.update(doc.reference, {'isRead': true});
+          }
+          await batch.commit();
         }
-        await batch.commit();
       }
 
       final chatDoc = await _firestore.collection('directMessages').doc(chatId).get();
@@ -946,16 +976,16 @@ class FirestoreService {
                 .toList());
   }
 
-  /// Belirli bir kullanıcının gönderilerini getir (Profil ekranı için grids, İndeks hatasını önlemek için client-side filtreleme)
+  /// Belirli bir kullanıcının gönderilerini getir
   Stream<List<PostModel>> getUserPostsStream(String userId) {
     return _firestore
         .collection('posts')
+        .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
+        .limit(30)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => PostModel.fromFirestore(doc))
-            .where((post) => post.userId == userId)
-            .take(30)
             .toList());
   }
 
@@ -1116,8 +1146,8 @@ class FirestoreService {
   Stream<int> onlineUsersCountStream() async* {
     // İlk değeri hemen yolla
     yield await getOnlineUsersCount();
-    // Sonra her 10 saniyede bir güncelle
-    yield* Stream.periodic(const Duration(seconds: 10), (_) {}).asyncMap((_) async {
+    // Sonra her 60 saniyede bir güncelle
+    yield* Stream.periodic(const Duration(seconds: 60), (_) {}).asyncMap((_) async {
       return await getOnlineUsersCount();
     });
   }

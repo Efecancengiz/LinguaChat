@@ -10,10 +10,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart' as
 import 'package:image_picker_android/image_picker_android.dart' as image_picker_android;
 import 'package:path_provider_android/path_provider_android.dart' as path_provider_android;
 import 'package:sqflite_android/sqflite_android.dart' as sqflite_android;
+import 'package:webview_flutter_android/webview_flutter_android.dart' as webview_flutter_android;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as flutter_local_notifications;
 import 'package:image_picker_ios/image_picker_ios.dart' as image_picker_ios;
 import 'package:path_provider_foundation/path_provider_foundation.dart' as path_provider_foundation;
 import 'package:sqflite_darwin/sqflite_darwin.dart' as sqflite_darwin;
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart' as webview_flutter_wkwebview;
 import 'package:file_selector_linux/file_selector_linux.dart' as file_selector_linux;
 import 'package:flutter_local_notifications_linux/flutter_local_notifications_linux.dart' as flutter_local_notifications_linux;
 import 'package:image_picker_linux/image_picker_linux.dart' as image_picker_linux;
@@ -23,6 +25,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart' as
 import 'package:image_picker_macos/image_picker_macos.dart' as image_picker_macos;
 import 'package:path_provider_foundation/path_provider_foundation.dart' as path_provider_foundation;
 import 'package:sqflite_darwin/sqflite_darwin.dart' as sqflite_darwin;
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart' as webview_flutter_wkwebview;
 import 'package:file_selector_windows/file_selector_windows.dart' as file_selector_windows;
 import 'package:flutter_local_notifications_windows/flutter_local_notifications_windows.dart' as flutter_local_notifications_windows;
 import 'package:image_picker_windows/image_picker_windows.dart' as image_picker_windows;
@@ -70,6 +73,15 @@ class _PluginRegistrant {
         );
       }
 
+      try {
+        webview_flutter_android.AndroidWebViewPlatform.registerWith();
+      } catch (err) {
+        print(
+          '`webview_flutter_android` threw an error: $err. '
+          'The app may not function as expected until you remove this plugin from pubspec.yaml'
+        );
+      }
+
     } else if (Platform.isIOS) {
       try {
         flutter_local_notifications.IOSFlutterLocalNotificationsPlugin.registerWith();
@@ -103,6 +115,15 @@ class _PluginRegistrant {
       } catch (err) {
         print(
           '`sqflite_darwin` threw an error: $err. '
+          'The app may not function as expected until you remove this plugin from pubspec.yaml'
+        );
+      }
+
+      try {
+        webview_flutter_wkwebview.WebKitWebViewPlatform.registerWith();
+      } catch (err) {
+        print(
+          '`webview_flutter_wkwebview` threw an error: $err. '
           'The app may not function as expected until you remove this plugin from pubspec.yaml'
         );
       }
@@ -186,6 +207,15 @@ class _PluginRegistrant {
       } catch (err) {
         print(
           '`sqflite_darwin` threw an error: $err. '
+          'The app may not function as expected until you remove this plugin from pubspec.yaml'
+        );
+      }
+
+      try {
+        webview_flutter_wkwebview.WebKitWebViewPlatform.registerWith();
+      } catch (err) {
+        print(
+          '`webview_flutter_wkwebview` threw an error: $err. '
           'The app may not function as expected until you remove this plugin from pubspec.yaml'
         );
       }

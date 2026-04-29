@@ -18,6 +18,7 @@ import 'package:linguachat/screens/premium/premium_screen.dart';
 import 'package:linguachat/screens/rooms/voice_room_screen.dart';
 import 'package:linguachat/providers/voice_room_timer_provider.dart';
 import 'package:linguachat/screens/feed/create_post_screen.dart';
+import 'package:linguachat/services/admob_service.dart';
 
 class LinguaChatApp extends StatelessWidget {
   const LinguaChatApp({super.key});
@@ -43,12 +44,13 @@ class _LinguaChatRouter extends StatefulWidget {
   State<_LinguaChatRouter> createState() => _LinguaChatRouterState();
 }
 
-class _LinguaChatRouterState extends State<_LinguaChatRouter> {
+class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindingObserver {
   late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final authProvider = context.read<AuthProvider>();
 
     _router = GoRouter(
@@ -124,9 +126,16 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> {
           builder: (context, state) {
             final chatId = state.pathParameters['chatId']!;
             final extra = state.extra as Map<String, dynamic>?;
+            final otherUserId = extra?['userId'] as String?;
+            if (otherUserId == null || otherUserId.isEmpty) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Hata')),
+                body: const Center(child: Text('Geçersiz kullanıcı ID')),
+              );
+            }
             return DmChatScreen(
               chatId: chatId,
-              otherUserId: extra?['userId'] ?? '',
+              otherUserId: otherUserId,
             );
           },
         ),
@@ -154,7 +163,15 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AdMobService.showAppOpenAdIfAvailable();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _router.dispose();
     super.dispose();
   }

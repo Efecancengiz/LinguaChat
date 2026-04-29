@@ -9,6 +9,7 @@ import 'app.dart';
 import 'services/notification_service.dart';
 import 'services/onesignal_service.dart';
 import 'services/revenuecat_service.dart';
+import 'services/admob_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,24 +41,28 @@ void main() async {
     // RevenueCat (Ödeme) sistemini başlat
     await RevenueCatService.init();
 
+    // AdMob sistemini başlat
+    await AdMobService.initialize();
+    AdMobService.loadAppOpenAd();
+
     // Turkish localization for timeago and intl
     timeago.setLocaleMessages('tr', timeago.TrMessages());
     timeago.setDefaultLocale('tr');
     await initializeDateFormatting('tr', null);
 
     runApp(const LinguaChatApp());
-  } catch (e, stack) {
+  } catch (e) {
     debugPrint('STARTUP ERROR: $e');
     runApp(
       MaterialApp(
         home: Scaffold(
           backgroundColor: Colors.white,
           body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+            child: Center(
               child: Text(
-                'BAŞLATMA HATASI:\n\n$e\n\n$stack',
-                style: const TextStyle(color: Colors.red, fontSize: 12),
+                'Uygulama başlatılamadı. Lütfen yeniden başlatın.\n(Hata: $e)',
+                style: const TextStyle(color: Colors.red, fontSize: 14),
+                textAlign: TextAlign.center,
               ),
             ),
           ),

@@ -15,14 +15,11 @@ class AuthService {
     required String password,
     required String displayName,
   }) async {
-    // Benzersiz kullanıcı adı kontrolü: Bu displayName daha önce alınmış mı?
-    final existingUser = await _firestore
-        .collection('users')
-        .where('displayName', isEqualTo: displayName)
-        .limit(1)
-        .get();
+    final usernameDocRef = _firestore.collection('usernames').doc(displayName);
 
-    if (existingUser.docs.isNotEmpty) {
+    // Hızlı kontrol
+    final usernameDoc = await usernameDocRef.get();
+    if (usernameDoc.exists) {
       throw Exception('username-taken');
     }
 
@@ -30,6 +27,20 @@ class AuthService {
       email: email,
       password: password,
     );
+
+    try {
+      // Atomik benzersizlik kontrolü
+      await _firestore.runTransaction((txn) async {
+        final snap = await txn.get(usernameDocRef);
+        if (snap.exists) {
+          throw Exception('username-taken');
+        }
+        txn.set(usernameDocRef, {'uid': credential.user!.uid});
+      });
+    } catch (e) {
+      await credential.user?.delete();
+      rethrow;
+    }
 
     await credential.user?.updateDisplayName(displayName);
 

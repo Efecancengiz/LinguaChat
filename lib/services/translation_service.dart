@@ -14,8 +14,8 @@ class TranslationService {
       );
       return translation.text;
     } catch (e) {
-      // Hata anında orijinal metni dön
-      return originalText;
+      // Hata anında fırlat
+      rethrow;
     }
   }
 }

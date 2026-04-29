@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
+import 'package:linguachat/services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:linguachat/services/revenuecat_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -41,8 +43,33 @@ class _PremiumScreenState extends State<PremiumScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final isSuccess = await RevenueCatService.purchasePackage(package);
+      final entitlement = await RevenueCatService.purchasePackage(package);
+      final isSuccess = entitlement?.isActive ?? false;
+
       if (isSuccess && mounted) {
+        final uid = authProvider.user?.uid;
+        if (uid != null) {
+           final expirationDateString = entitlement?.expirationDate;
+           DateTime? expirationDate;
+           if (expirationDateString != null) {
+              expirationDate = DateTime.tryParse(expirationDateString);
+           }
+           
+           // Varsayılan olarak paketin adına göre tahmini ekleme yapılabilir, 
+           // ancak RevenueCat expirationDate dönüyorsa onu kullanırız.
+           if (expirationDate != null) {
+             await FirestoreService().updateUser(uid, {
+               'isPremium': true,
+               'premiumEndDate': Timestamp.fromDate(expirationDate),
+             });
+           } else {
+             // Eğer tarih parse edilemezse fallback olarak RevenueCat yetkisi devam edene kadar Premium yapar
+             await FirestoreService().updateUser(uid, {
+               'isPremium': true,
+             });
+           }
+        }
+
         await authProvider.refreshUser();
         scaffoldMessenger.showSnackBar(
           const SnackBar(
@@ -239,13 +266,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
                        ),
                        const SizedBox(height: 24),
                        const Text(
-                         'Sesli Sohbet İçin Premium Özellik Al',
+                         'Sınırsız Sesli Sohbet',
                          textAlign: TextAlign.center,
                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                        ),
                        const SizedBox(height: 12),
                        const Text(
-                         'Sesli sohbet sadece premium üyelikler içindir.',
+                         'Sınırsız sesli sohbet ve diğer ayrıcalıklar için Premium\'a geç.',
                          textAlign: TextAlign.center,
                          style: TextStyle(fontSize: 15, color: AppTheme.textSecondary, height: 1.4),
                        ),

@@ -30,11 +30,6 @@ class RevenueCatService {
       _isConfigured = true;
       debugPrint('RevenueCatService: Başarıyla başlatıldı.');
     } else {
-      debugPrint(
-        'RevenueCatService: ⚠️  API Key bulunamadı. '
-        '.env dosyasına REVENUECAT_APPLE_API_KEY / REVENUECAT_GOOGLE_API_KEY '
-        'değerlerini ekleyin. RevenueCat başlatılmadı → Test modu aktif.',
-      );
       _isConfigured = false;
     }
   }
@@ -71,19 +66,18 @@ class RevenueCatService {
   }
 
   /// Bir paketi (örn: Haftalık) satın almak için market ödeme akışını başlatır.
-  static Future<bool> purchasePackage(Package package) async {
-    if (kIsWeb || !_isConfigured) return false;
+  static Future<EntitlementInfo?> purchasePackage(Package package) async {
+    if (kIsWeb || !_isConfigured) return null;
     try {
       final purchaseResult = await Purchases.purchase(PurchaseParams.package(package));
-      // RevenueCat üzerinden tanımladığımız "premium" adlı Entitlement'ı kontrol ediyoruz.
-      final isPremium = purchaseResult.customerInfo.entitlements.all['premium']?.isActive ?? false;
-      return isPremium;
+      // RevenueCat üzerinden tanımladığımız "premium" adlı Entitlement'ı döndürüyoruz.
+      return purchaseResult.customerInfo.entitlements.all['premium'];
     } on PlatformException catch (e) {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       if (errorCode != PurchasesErrorCode.purchaseCancelledError) {
         debugPrint('RevenueCatService.purchasePackage error: $e');
       }
-      return false;
+      return null;
     }
   }
 

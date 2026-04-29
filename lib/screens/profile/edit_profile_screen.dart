@@ -65,8 +65,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSaving = true);
 
     try {
+      final newDisplayName = _nameController.text.trim();
+      
+      if (user.displayName != newDisplayName) {
+        try {
+          await _firestoreService.updateUserDisplayName(
+            user.uid, 
+            user.displayName, 
+            newDisplayName,
+          );
+          
+          // Yeni isim başarıyla kaydedildi.
+          // Provider user objesi refreshUser ile en son adımı yansıtacak.
+        } catch (e) {
+          if (e.toString().contains('username-taken')) {
+            throw Exception('Bu kullanıcı adı zaten alınmış.');
+          }
+          rethrow;
+        }
+      }
+
       await _firestoreService.updateUser(user.uid, {
-        'displayName': _nameController.text.trim(),
         'bio': _bioController.text.trim(),
         'city': _cityController.text.trim(),
         'knownLanguages': _knownLanguages,

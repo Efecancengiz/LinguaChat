@@ -31,12 +31,17 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
     _authSubscription = _authService.authStateChanges.listen((User? firebaseUser) async {
       if (firebaseUser != null) {
         try {
-          // Wait a short bit to allow signUp function to write the document
-          await Future.delayed(const Duration(milliseconds: 800));
+          // Wait briefly to allow sign up function to write the document
           await firebaseUser.reload(); // Get latest display name
           final latestUser = FirebaseAuth.instance.currentUser ?? firebaseUser;
           
-          final fetchedUser = await _firestoreService.getUser(latestUser.uid);
+          UserModel? fetchedUser = await _firestoreService.getUser(latestUser.uid);
+          
+          // Retry logic if document isn't written yet
+          if (fetchedUser == null) {
+            await Future.delayed(const Duration(milliseconds: 500));
+            fetchedUser = await _firestoreService.getUser(latestUser.uid);
+          }
           
           if (fetchedUser != null) {
             _user = fetchedUser;

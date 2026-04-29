@@ -374,6 +374,12 @@
       "languageVersion": "3.9"
     },
     {
+      "name": "google_mobile_ads",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_mobile_ads-8.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
       "name": "hmssdk_flutter",
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/hmssdk_flutter-1.11.0",
       "packageUri": "lib/",
@@ -810,6 +816,30 @@
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/web-1.1.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "webview_flutter",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/webview_flutter-4.13.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "webview_flutter_android",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/webview_flutter_android-4.11.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "webview_flutter_platform_interface",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/webview_flutter_platform_interface-2.15.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
+    },
+    {
+      "name": "webview_flutter_wkwebview",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/webview_flutter_wkwebview-3.24.5",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
     },
     {
       "name": "xdg_directories",
