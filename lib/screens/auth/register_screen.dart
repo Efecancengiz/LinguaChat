@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/gestures.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
 
@@ -21,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  bool _acceptedPrivacyPolicy = false;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
 
@@ -49,6 +52,16 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (!_acceptedPrivacyPolicy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen Gizlilik Politikası\'nı onaylayın.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
 
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signUp(
@@ -235,6 +248,57 @@ class _RegisterScreenState extends State<RegisterScreen>
                       return const SizedBox.shrink();
                     },
                   ),
+                  // Privacy Policy Checkbox
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: Checkbox(
+                          value: _acceptedPrivacyPolicy,
+                          onChanged: (val) {
+                            setState(() {
+                              _acceptedPrivacyPolicy = val ?? false;
+                            });
+                          },
+                          activeColor: AppTheme.primary,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                              height: 1.3,
+                            ),
+                            children: [
+                              const TextSpan(text: '13 yaşından büyük olduğumu ve '),
+                              TextSpan(
+                                text: 'Gizlilik Politikası\'nı',
+                                style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () async {
+                                    final url = Uri.parse('https://linguachat-550b1.web.app/privacy.html');
+                                    if (await canLaunchUrl(url)) {
+                                      await launchUrl(url);
+                                    }
+                                  },
+                              ),
+                              const TextSpan(text: ' okuyup kabul ettiğimi onaylıyorum.'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   // Register button
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {

@@ -235,9 +235,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     children: [
                       _buildStat('${user.postsCount}', 'Gönderi'),
                       Container(width: 1, height: 40, color: AppTheme.border),
-                      _buildStat('${user.followersCount}', 'Takipçi'),
+                      _buildStat('${user.followersCount}', 'Takipçi', onTap: () => context.push('/follows/${user.uid}/followers')),
                       Container(width: 1, height: 40, color: AppTheme.border),
-                      _buildStat('${user.followingCount}', 'Takip Edilen'),
+                      _buildStat('${user.followingCount}', 'Takip Edilen', onTap: () => context.push('/follows/${user.uid}/following')),
                     ],
                   ),
                 ),
@@ -402,26 +402,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  Widget _buildStat(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.primary,
+  Widget _buildStat(String value, String label, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primary,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 12,
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 12,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

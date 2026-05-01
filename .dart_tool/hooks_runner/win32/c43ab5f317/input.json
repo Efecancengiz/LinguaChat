@@ -1,0 +1,30 @@
+{
+  "assets": {},
+  "config": {
+    "build_asset_types": [
+      "code_assets/code"
+    ],
+    "extensions": {
+      "code_assets": {
+        "c_compiler": {
+          "ar": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar",
+          "cc": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+          "ld": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld"
+        },
+        "ios": {
+          "target_sdk": "iphoneos",
+          "target_version": 13
+        },
+        "link_mode_preference": "dynamic",
+        "target_architecture": "arm64",
+        "target_os": "ios"
+      }
+    },
+    "linking_enabled": false
+  },
+  "out_dir_shared": "/Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/win32/build/",
+  "out_file": "/Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/win32/c43ab5f317/output.json",
+  "package_name": "win32",
+  "package_root": "/Users/efecancengiz/.pub-cache/hosted/pub.dev/win32-6.1.0/",
+  "user_defines": {}
+}

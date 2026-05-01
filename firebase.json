@@ -2,6 +2,14 @@
   "functions": { "source": "functions" },
   "firestore": { "rules": "firestore.rules" },
   "storage": { "rules": "storage.rules" },
+  "hosting": {
+    "public": "web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
   "flutter": {
     "platforms": {
       "android": {

@@ -194,16 +194,73 @@ class _DmListScreenState extends State<DmListScreen> {
                                   ],
                                 ),
                               ),
-                              if (updatedAt != null)
-                                Text(
-                                  timeago.format(updatedAt,
-                                      locale: 'tr'),
-                                  style: const TextStyle(
-                                    color:
-                                        AppTheme.textSecondary,
-                                    fontSize: 11,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (updatedAt != null)
+                                    Text(
+                                      timeago.format(updatedAt, locale: 'tr'),
+                                      style: const TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: PopupMenuButton<String>(
+                                      padding: EdgeInsets.zero,
+                                      icon: const Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
+                                      color: AppTheme.surfaceLight,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: const BorderSide(color: AppTheme.border, width: 0.5),
+                                      ),
+                                      onSelected: (value) async {
+                                        if (value == 'delete') {
+                                          showDialog(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              backgroundColor: AppTheme.surfaceLight,
+                                              title: const Text('Sohbeti Sil', style: TextStyle(color: AppTheme.textPrimary)),
+                                              content: const Text('Bu sohbeti tamamen silmek istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(ctx),
+                                                  child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () async {
+                                                    Navigator.pop(ctx);
+                                                    try {
+                                                      await _firestoreService.deleteDmChat(chat['id']);
+                                                    } catch (_) {}
+                                                  },
+                                                  child: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          height: 36,
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.delete_outline, color: AppTheme.danger, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Sohbeti Sil', style: TextStyle(color: AppTheme.danger, fontSize: 13)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
+                                ],
+                              ),
                             ],
                           ),
                         ),

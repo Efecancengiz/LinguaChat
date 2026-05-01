@@ -13,6 +13,7 @@ import 'package:linguachat/models/user_model.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:linguachat/services/firestore_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -228,14 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                user.email,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 14,
-                ),
-              ),
+
               if (user.city.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Row(
@@ -265,6 +259,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
               const SizedBox(height: 24),
+              // Stats row
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: AppTheme.glassDecoration,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStat('${user.postsCount}', 'Gönderi', onTap: () => context.push('/user-posts/${user.uid}')),
+                    Container(width: 1, height: 40, color: AppTheme.border),
+                    _buildStat('${user.followersCount}', 'Takipçi', onTap: () => context.push('/follows/${user.uid}/followers')),
+                    Container(width: 1, height: 40, color: AppTheme.border),
+                    _buildStat('${user.followingCount}', 'Takip Edilen', onTap: () => context.push('/follows/${user.uid}/following')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               // Learning languages
               if (user.learningLanguages.isNotEmpty) ...[
                 const Align(
@@ -290,24 +300,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
               ],
-              // Stats row
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: AppTheme.glassDecoration,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStat('${user.postsCount}', 'Gönderi'),
-                    Container(width: 1, height: 40, color: AppTheme.border),
-                    _buildStat('${user.followersCount}', 'Takipçi'),
-                    Container(width: 1, height: 40, color: AppTheme.border),
-                    _buildStat('${user.followingCount}', 'Takip Edilen'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
               // Known languages
               if (user.knownLanguages.isNotEmpty) ...[
                 const Align(
@@ -384,51 +378,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 24),
               ],
-              
-              // Posts Grid
-              StreamBuilder<List<PostModel>>(
-                  stream: FirestoreService().getUserPostsStream(user.uid),
-                  builder: (context, postSnapshot) {
-                     if (postSnapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                     }
-                     final posts = postSnapshot.data ?? [];
-                     if (posts.isEmpty) {
-                        return const SizedBox.shrink();
-                     }
-                     return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 2,
-                          mainAxisSpacing: 2,
-                        ),
-                        itemCount: posts.length,
-                        itemBuilder: (context, index) {
-                           final post = posts[index];
-                           if (post.imageUrl != null && post.imageUrl!.isNotEmpty) {
-                             return Image.network(post.imageUrl!, fit: BoxFit.cover);
-                           } else {
-                             return Container(
-                                color: AppTheme.surfaceLight,
-                                padding: const EdgeInsets.all(8),
-                                child: Center(
-                                  child: Text(
-                                     post.content,
-                                     maxLines: 4,
-                                     overflow: TextOverflow.ellipsis,
-                                     style: const TextStyle(fontSize: 10),
-                                  )
-                                )
-                             );
-                           }
-                        },
-                     );
-                  }
-               ),
-              const SizedBox(height: 24),
+
               // Menu items
+              _buildMenuItem(
+                icon: Icons.bookmark_border_rounded,
+                title: 'Kaydedilenler',
+                subtitle: 'Kaydettiğin gönderileri gör',
+                onTap: () => context.push('/saved-posts'),
+              ),
               _buildMenuItem(
                 icon: Icons.people_outline_rounded,
                 title: 'Arkadaşlarım',
@@ -447,6 +404,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: 'LinguaChat v1.0.0',
                 onTap: () {},
               ),
+              _buildMenuItem(
+                icon: Icons.settings_outlined,
+                title: 'Ayarlar',
+                subtitle: 'Hesap ve gizlilik ayarları',
+                onTap: () => _showSettingsModal(context),
+              ),
             ],
           ),
         );
@@ -454,26 +417,133 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStat(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.primary,
+  void _showSettingsModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Ayarlar',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
+                title: const Text('Gizlilik Politikası', style: TextStyle(color: AppTheme.textPrimary)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final Uri url = Uri.parse('https://linguachat-550b1.web.app/privacy.html');
+                  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Bağlantı açılamadı')),
+                      );
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: AppTheme.danger),
+                title: const Text('Hesabımı Sil', style: TextStyle(color: AppTheme.danger)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteAccountDialog(context);
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 12,
+        title: const Text('Hesabı Sil', style: TextStyle(color: AppTheme.textPrimary)),
+        content: const Text(
+          'Hesabınızı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
           ),
-        ),
-      ],
+          TextButton(
+            onPressed: () async {
+               Navigator.pop(ctx);
+               final authProvider = context.read<AuthProvider>();
+               final success = await authProvider.deleteAccount();
+               if (success && mounted) {
+                 context.go('/login');
+               } else if (mounted) {
+                 ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(
+                     content: Text(authProvider.error ?? 'Hesap silinirken hata oluştu'),
+                     backgroundColor: AppTheme.danger,
+                   )
+                 );
+               }
+            },
+            child: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStat(String value, String label, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

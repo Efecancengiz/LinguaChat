@@ -3,6 +3,9 @@ const admin = require("firebase-admin");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const axios = require("axios");
+const vision = require("@google-cloud/vision");
+
+const visionClient = new vision.ImageAnnotatorClient();
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -73,13 +76,41 @@ exports.getOrCreateHmsRoom = functions.https.onCall(async (data, context) => {
     }
 
     const roomData = roomSnap.data();
-    if (roomData.hmsCode) {
-      return { roomCode: roomData.hmsCode };
-    }
+    let currentHmsCode = roomData.hmsCode;
+    let currentHmsRoomId = roomData.hmsRoomId;
 
     const token = generateManagementToken();
     const headers = { Authorization: `Bearer ${token}` };
 
+    let isFull = false;
+
+    if (currentHmsRoomId) {
+      try {
+        const activeRes = await axios.get(
+          `https://api.100ms.live/v2/active-rooms/${currentHmsRoomId}`,
+          { headers }
+        );
+        const peers = activeRes.data.session && activeRes.data.session.peers ? activeRes.data.session.peers : [];
+        const peerCount = Object.keys(peers).length;
+        if (peerCount >= 5) {
+          isFull = true;
+          console.log(`Oda ${currentHmsRoomId} dolu (${peerCount} kişi). Yeni oda oluşturulacak.`);
+        }
+      } catch (err) {
+        if (err.response && err.response.status === 404) {
+          // Room is not active, peer count is 0
+          isFull = false;
+        } else {
+          console.error("active-rooms API hatası:", err.message);
+        }
+      }
+    }
+
+    if (currentHmsCode && !isFull) {
+      return { roomCode: currentHmsCode };
+    }
+
+    // Mevcut oda yoksa veya doluysa yeni bir oda oluştur
     const createRoomRes = await axios.post(
       "https://api.100ms.live/v2/rooms",
       {
@@ -376,5 +407,54 @@ exports.revenueCatWebhook = functions.https.onRequest(async (req, res) => {
   } catch (err) {
     console.error("RevenueCatWebhook Firestore hatası:", err.message);
     return res.status(500).send("Internal Server Error");
+  }
+});
+
+// ─── moderateImage ────────────────────────────────────────────────────────────
+/**
+ * Yüklenen görselin Google Cloud Vision API ile NSFW (Uygunsuz İçerik) testinden geçirilmesini sağlar.
+ */
+exports.moderateImage = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "Bu işlemi yapmak için giriş yapmış olmalısınız."
+    );
+  }
+
+  const { filePath } = data; // Yüklenen dosyanın storage yolu (örn: 'posts/UID/1234.jpg')
+  if (!filePath) {
+    throw new functions.https.HttpsError("invalid-argument", "filePath parametresi eksik.");
+  }
+
+  try {
+    const bucketName = admin.storage().bucket().name;
+    const gcsUri = `gs://${bucketName}/${filePath}`;
+
+    // Cloud Vision SafeSearch analizi
+    const [result] = await visionClient.safeSearchDetection(gcsUri);
+    const detections = result.safeSearchAnnotation;
+
+    if (!detections) {
+      return { isSafe: true };
+    }
+
+    // Yetişkin içerik veya şiddet ihtimali LIKELY veya VERY_LIKELY ise engelle
+    const unsafeLevels = ["LIKELY", "VERY_LIKELY"];
+    const isAdult = unsafeLevels.includes(detections.adult);
+    const isViolence = unsafeLevels.includes(detections.violence);
+    const isMedical = unsafeLevels.includes(detections.medical); // İsteğe bağlı
+    const isRacy = unsafeLevels.includes(detections.racy); // İsteğe bağlı (müstehcen)
+
+    if (isAdult || isViolence || isRacy) {
+      // Uygunsuz bulundu: Dosyayı derhal sil
+      await admin.storage().bucket().file(filePath).delete();
+      return { isSafe: false, reason: "NSFW_DETECTED" };
+    }
+
+    return { isSafe: true };
+  } catch (err) {
+    console.error("Yapay zeka resim analiz hatası:", err);
+    throw new functions.https.HttpsError("internal", "Resim güvenliği doğrulanamadı.");
   }
 });

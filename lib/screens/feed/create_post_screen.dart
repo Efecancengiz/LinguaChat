@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
 import 'package:linguachat/services/firestore_service.dart';
@@ -108,13 +109,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     );
   }
 
-  Future<String?> _uploadImage(String uid) async {
+  Future<Map<String, String>?> _uploadImage(String uid) async {
     if (_selectedImage == null) return null;
     
     try {
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('posts/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final path = 'posts/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = FirebaseStorage.instance.ref().child(path);
           
       // Read bytes directly like StorageService
       final bytes = await _selectedImage!.readAsBytes().timeout(const Duration(seconds: 15));
@@ -143,7 +143,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       int retryCount = 0;
       while (true) {
         try {
-          return await ref.getDownloadURL().timeout(const Duration(seconds: 10));
+          final downloadUrl = await ref.getDownloadURL().timeout(const Duration(seconds: 10));
+          return {'url': downloadUrl, 'path': path};
         } catch (e) {
           if (retryCount >= 4) {
             throw Exception("Dosya yüklendi ancak linki alınamadı (4 deneme başarısız): $e");
@@ -167,7 +168,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     try {
       String? imageUrl;
       if (_selectedImage != null) {
-        imageUrl = await _uploadImage(uid);
+        final uploadResult = await _uploadImage(uid);
+        if (uploadResult != null) {
+          imageUrl = uploadResult['url'];
+          final path = uploadResult['path'];
+
+          // YAPAY ZEKA GÜVENLİK KONTROLÜ
+          final functions = FirebaseFunctions.instance;
+          final result = await functions.httpsCallable('moderateImage').call({'filePath': path});
+          
+          if (result.data['isSafe'] != true) {
+            throw Exception("Topluluk kurallarımıza aykırı içerik (NSFW) tespit edildi.");
+          }
+        }
       }
 
       final post = PostModel(

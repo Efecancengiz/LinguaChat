@@ -118,6 +118,21 @@ class FirestoreService {
     }
   }
 
+  Future<void> deleteUser(String uid) async {
+    try {
+      // 1. Profil resmini silmek istersen Storage servisi kullanılmalı (şimdilik Firestore)
+      // 2. Kullanıcıyı users koleksiyonundan sil
+      await _firestore.collection('users').doc(uid).delete();
+      
+      // Not: Kullanıcının gönderileri, yorumları veya alt koleksiyonları (following/followers vb.)
+      // arka planda bir Cloud Function ile silinmelidir (veya Firebase Extensions).
+      // İstemci üzerinden her şeyi silmek uzun sürebilir ve güvenlik kurallarına takılabilir.
+    } catch (e) {
+      debugPrint('FirestoreService.deleteUser hata: $e');
+      rethrow;
+    }
+  }
+
   Future<List<UserModel>> searchUsers(String query) async {
     try {
       final snapshot = await _firestore
@@ -637,6 +652,21 @@ class FirestoreService {
     }
   }
 
+  Future<void> deleteDmChat(String chatId) async {
+    try {
+      final batch = _firestore.batch();
+      final messages = await _firestore.collection('directMessages').doc(chatId).collection('messages').limit(100).get();
+      for (var doc in messages.docs) {
+        batch.delete(doc.reference);
+      }
+      batch.delete(_firestore.collection('directMessages').doc(chatId));
+      await batch.commit();
+    } catch (e) {
+      debugPrint('FirestoreService.deleteDmChat hata: $e');
+      rethrow;
+    }
+  }
+
   /// Genel Push Bildirimi Gönderme Fonksiyonu
   Future<void> _sendPushNotification({
     required String recipientId,
@@ -981,12 +1011,16 @@ class FirestoreService {
     return _firestore
         .collection('posts')
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .limit(30)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PostModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          final posts = snapshot.docs
+              .map((doc) => PostModel.fromFirestore(doc))
+              .toList();
+          // Sort client-side to avoid needing composite index
+          posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return posts;
+        });
   }
 
   /// Gönderi beğen / beğeniyi çek
@@ -1054,6 +1088,24 @@ class FirestoreService {
       await batch.commit();
     } catch (e) {
       debugPrint('FirestoreService.addComment hata: $e');
+      rethrow;
+    }
+  }
+
+  /// Gönderi yorumunu sil
+  Future<void> deleteComment(String postId, String commentId) async {
+    try {
+      final batch = _firestore.batch();
+      batch.delete(
+        _firestore.collection('posts').doc(postId).collection('comments').doc(commentId)
+      );
+      batch.update(
+        _firestore.collection('posts').doc(postId),
+        {'commentsCount': FieldValue.increment(-1)},
+      );
+      await batch.commit();
+    } catch (e) {
+      debugPrint('FirestoreService.deleteComment hata: $e');
       rethrow;
     }
   }
@@ -1130,6 +1182,97 @@ class FirestoreService {
       debugPrint('FirestoreService.deletePost hata: $e');
       rethrow;
     }
+  }
+
+  /// Get user's followers
+  Future<List<UserModel>> getFollowers(String userId) async {
+    try {
+      final snap = await _firestore.collection('users').doc(userId).collection('followers').orderBy('createdAt', descending: true).get();
+      final userIds = snap.docs.map((doc) => doc.id).toList();
+      if (userIds.isEmpty) return [];
+      
+      // Fetch user docs (max 30 for now to prevent whereIn limit issues)
+      final userDocs = await _firestore.collection('users').where(FieldPath.documentId, whereIn: userIds.take(30).toList()).get();
+      return userDocs.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      debugPrint('FirestoreService.getFollowers hata: $e');
+      return [];
+    }
+  }
+
+  /// Get user's following
+  Future<List<UserModel>> getFollowing(String userId) async {
+    try {
+      final snap = await _firestore.collection('users').doc(userId).collection('following').orderBy('createdAt', descending: true).get();
+      final userIds = snap.docs.map((doc) => doc.id).toList();
+      if (userIds.isEmpty) return [];
+      
+      final userDocs = await _firestore.collection('users').where(FieldPath.documentId, whereIn: userIds.take(30).toList()).get();
+      return userDocs.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      debugPrint('FirestoreService.getFollowing hata: $e');
+      return [];
+    }
+  }
+
+  // ============ SAVED POSTS ============
+
+  /// Toggle save post
+  Future<void> toggleSavePost(String postId, String userId) async {
+    try {
+      final saveRef = _firestore.collection('users').doc(userId).collection('savedPosts').doc(postId);
+      final doc = await saveRef.get();
+      
+      if (doc.exists) {
+        await saveRef.delete();
+      } else {
+        await saveRef.set({'createdAt': FieldValue.serverTimestamp()});
+      }
+    } catch (e) {
+      debugPrint('FirestoreService.toggleSavePost hata: $e');
+      rethrow;
+    }
+  }
+
+  /// Is post saved stream
+  Stream<bool> isSavedStream(String postId, String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('savedPosts')
+        .doc(postId)
+        .snapshots()
+        .map((doc) => doc.exists);
+  }
+
+  /// Get saved posts stream
+  Stream<List<PostModel>> getSavedPostsStream(String userId) async* {
+    yield* _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('savedPosts')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .asyncMap((snap) async {
+          if (snap.docs.isEmpty) return [];
+          final postIds = snap.docs.map((d) => d.id).toList();
+          
+          List<PostModel> posts = [];
+          for (var i = 0; i < postIds.length; i += 30) {
+            final chunk = postIds.skip(i).take(30).toList();
+            final postsSnap = await _firestore.collection('posts').where(FieldPath.documentId, whereIn: chunk).get();
+            posts.addAll(postsSnap.docs.map((doc) => PostModel.fromFirestore(doc)));
+          }
+          
+          // Preserve ordering from savedPosts
+          posts.sort((a, b) {
+            final idxA = postIds.indexOf(a.id);
+            final idxB = postIds.indexOf(b.id);
+            return idxA.compareTo(idxB);
+          });
+          
+          return posts;
+        });
   }
 
   // ============ STATS ============

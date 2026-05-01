@@ -11,6 +11,9 @@ import 'package:linguachat/screens/home/home_screen.dart';
 import 'package:linguachat/screens/rooms/room_chat_screen.dart';
 import 'package:linguachat/screens/profile/edit_profile_screen.dart';
 import 'package:linguachat/screens/profile/user_profile_screen.dart';
+import 'package:linguachat/screens/profile/follow_list_screen.dart';
+import 'package:linguachat/screens/profile/saved_posts_screen.dart';
+import 'package:linguachat/screens/profile/user_posts_screen.dart';
 import 'package:linguachat/screens/friends/friends_list_screen.dart';
 import 'package:linguachat/screens/friends/friend_requests_screen.dart';
 import 'package:linguachat/screens/dm/dm_chat_screen.dart';
@@ -114,6 +117,25 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
           },
         ),
         GoRoute(
+          path: '/follows/:userId/:type',
+          builder: (context, state) {
+            final userId = state.pathParameters['userId']!;
+            final type = state.pathParameters['type']!;
+            return FollowListScreen(userId: userId, type: type);
+          },
+        ),
+        GoRoute(
+          path: '/saved-posts',
+          builder: (context, state) => const SavedPostsScreen(),
+        ),
+        GoRoute(
+          path: '/user-posts/:userId',
+          builder: (context, state) {
+            final userId = state.pathParameters['userId']!;
+            return UserPostsScreen(userId: userId);
+          },
+        ),
+        GoRoute(
           path: '/friends',
           builder: (context, state) => const FriendsListScreen(),
         ),
@@ -165,7 +187,10 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      AdMobService.showAppOpenAdIfAvailable();
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.user?.isPremium != true) {
+        AdMobService.showAppOpenAdIfAvailable();
+      }
     }
   }
 

@@ -104,6 +104,18 @@ class _MessageBubbleState extends State<MessageBubble> {
             const SizedBox(width: 8),
           ],
           if (!widget.isMe && !widget.showAvatar) const SizedBox(width: 40),
+          if (widget.isMe && widget.onLongPress != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: InkWell(
+                onTap: widget.onLongPress,
+                borderRadius: BorderRadius.circular(12),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
+                ),
+              ),
+            ),
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -206,7 +218,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       if (widget.isMe) ...[
                         const SizedBox(width: 4),
                         Icon(
-                          widget.message.isRead ? Icons.done_all_rounded : Icons.check_rounded,
+                          Icons.done_all_rounded,
                           size: 14,
                           color: widget.message.isRead 
                               ? Colors.lightBlueAccent 

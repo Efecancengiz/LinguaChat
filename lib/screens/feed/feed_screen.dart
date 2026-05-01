@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
 import 'package:linguachat/services/firestore_service.dart';
@@ -620,16 +621,7 @@ class _PostCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              // Tekrar paylaş
-              _ActionButton(
-                icon: Icons.repeat_rounded,
-                label: post.repostsCount > 0 ? post.repostsCount.toString() : '',
-                isActive: false,
-                activeColor: Colors.greenAccent,
-                onTap: () => _showRepostConfirm(context),
-              ),
-
-              const Spacer(),
+              const SizedBox(width: 8),
 
               // Dış paylaş
               _ActionButton(
@@ -637,7 +629,28 @@ class _PostCard extends StatelessWidget {
                 label: '',
                 isActive: false,
                 activeColor: AppTheme.primary,
-                onTap: () {},
+                onTap: () {
+                   final shareText = '${post.userDisplayName} LinguaChat\'te bir gönderi paylaştı:\n\n"${post.content}"\n\nHemen sen de aramıza katıl!';
+                   Share.share(shareText);
+                },
+              ),
+
+              const Spacer(),
+
+              // Kaydet
+              StreamBuilder<bool>(
+                stream: firestoreService.isSavedStream(post.id, currentUserId),
+                builder: (context, snap) {
+                  final isSaved = snap.data ?? false;
+                  return _ActionButton(
+                    icon: Icons.bookmark_border_rounded,
+                    activeIcon: Icons.bookmark_rounded,
+                    label: '',
+                    isActive: isSaved,
+                    activeColor: AppTheme.primary,
+                    onTap: () => firestoreService.toggleSavePost(post.id, currentUserId),
+                  );
+                },
               ),
             ],
           ),
@@ -868,51 +881,108 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                             timeStr = 'Şimdi';
                           }
                         }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            UserAvatar(
-                              photoUrl: c['userPhotoUrl'] ?? '',
-                              displayName: c['userDisplayName'] ?? '?',
-                              radius: 16,
-                              isOnline: false,
-                              showOnlineIndicator: false,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        c['userDisplayName'] ?? '',
-                                        style: const TextStyle(
-                                            color: AppTheme.textPrimary,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        timeStr,
-                                        style: const TextStyle(
-                                            color: AppTheme.textSecondary,
-                                            fontSize: 11),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              UserAvatar(
+                                photoUrl: c['userPhotoUrl'] ?? '',
+                                displayName: c['userDisplayName'] ?? '?',
+                                radius: 16,
+                                isOnline: false,
+                                showOnlineIndicator: false,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          c['userDisplayName'] ?? '',
+                                          style: const TextStyle(
+                                              color: AppTheme.textPrimary,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          timeStr,
+                                          style: const TextStyle(
+                                              color: AppTheme.textSecondary,
+                                              fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      c['content'] ?? '',
+                                      style: const TextStyle(
+                                          color: AppTheme.textPrimary,
+                                          fontSize: 14,
+                                          height: 1.4),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (c['userId'] == widget.currentUserId || widget.post.userId == widget.currentUserId)
+                                SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: PopupMenuButton<String>(
+                                    padding: EdgeInsets.zero,
+                                    icon: const Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
+                                    color: AppTheme.surfaceLight,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: const BorderSide(color: AppTheme.border, width: 0.5),
+                                    ),
+                                    onSelected: (value) async {
+                                      if (value == 'delete') {
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            backgroundColor: AppTheme.surfaceLight,
+                                            title: const Text('Yorumu Sil', style: TextStyle(color: AppTheme.textPrimary)),
+                                            content: const Text('Bu yorumu silmek istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx),
+                                                child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                                              ),
+                                              TextButton(
+                                                onPressed: () async {
+                                                  Navigator.pop(ctx);
+                                                  try {
+                                                    await widget.firestoreService.deleteComment(widget.post.id, c['id']);
+                                                  } catch (_) {}
+                                                },
+                                                child: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        height: 36,
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.delete_outline, color: AppTheme.danger, size: 18),
+                                            SizedBox(width: 8),
+                                            Text('Sil', style: TextStyle(color: AppTheme.danger, fontSize: 13)),
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    c['content'] ?? '',
-                                    style: const TextStyle(
-                                        color: AppTheme.textPrimary,
-                                        fontSize: 14,
-                                        height: 1.4),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                                ),
+                            ],
+                          ),
                         );
                       },
                     );

@@ -236,6 +236,38 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> deleteAccount() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        await _firestoreService.deleteUser(user.uid);
+        await user.delete();
+        _user = null;
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        _error = 'Bu işlem için yeniden giriş yapmanız gerekiyor. Lütfen çıkış yapıp tekrar giriş yapın.';
+      } else {
+        _error = _getErrorMessage(e.code);
+      }
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'Hesap silinirken hata oluştu: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();

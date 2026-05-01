@@ -1,58 +1,58 @@
-Running `(cd /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; ANDROID_HOME=/Users/efecancengiz/Library/Android/sdk TMPDIR=/var/folders/ff/wygv081924z8tnfgc2nmnzm40000gn/T/ PATH=/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/bin:/Applications/Xcode.app/Contents/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/usr/local/bin:/Users/efecancengiz/Desktop/flutter/bin:/Users/efecancengiz/Desktop/flutter/bin/:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pkg/env/active/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/efecancengiz/.pub-cache/bin HOME=/Users/efecancengiz /Users/efecancengiz/Desktop/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/package_config.json /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/objective_c/c43ab5f317/hook.dill --config=/Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/objective_c/c43ab5f317/input.json )`.
-INFO: 2026-04-28 22:48:56.071053: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+Running `(cd /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; ANDROID_HOME=/Users/efecancengiz/Library/Android/sdk TMPDIR=/var/folders/ff/wygv081924z8tnfgc2nmnzm40000gn/T/ PATH=/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/bin:/Applications/Xcode.app/Contents/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/usr/local/bin:/Users/efecancengiz/Desktop/flutter/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pkg/env/active/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/efecancengiz/Desktop/flutter/bin/:/Users/efecancengiz/.pub-cache/bin HOME=/Users/efecancengiz /Users/efecancengiz/Desktop/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/package_config.json /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/objective_c/c43ab5f317/hook.dill --config=/Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/objective_c/c43ab5f317/input.json )`.
+INFO: 2026-05-01 20:14:11.541306: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
 
-INFO: 2026-04-28 22:48:56.080741: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+INFO: 2026-05-01 20:14:11.555381: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
 
-INFO: 2026-04-28 22:48:56.091355: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.c.o
+INFO: 2026-05-01 20:14:11.567205: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/include/dart_api_dl.c.o
 
-art_api_dl.c.o
+INFO: 2026-05-01 20:14:11.567625: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/input_stream_adapter.m.o
 
-INFO: 2026-04-28 22:48:56.091582: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.m.o
+INFO: 2026-05-01 20:14:11.567752: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.m.o
 
-ream_adapter.m.o
+INFO: 2026-05-01 20:14:11.567963: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/observer.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/observer.m.o
 
-INFO: 2026-04-28 22:48:56.091813: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/protocol.m.o
+INFO: 2026-05-01 20:14:11.568054: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/ns_number.m.o
 
-NFO: 2026-04-28 22:48:56.091740: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/ns_number.m.o
+INFO: 2026-05-01 20:14:11.568139: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/protocol.m.o
 
-INFO: 2026-04-28 22:48:56.091892: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c_bindings_generated.m.o
+INFO: 2026-05-01 20:14:11.568218: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/efecancengiz/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c_bindings_generated.m.o
 
-INFO: 2026-04-28 22:48:56.123820: 
-INFO: 2026-04-28 22:48:56.123891: 
+INFO: 2026-05-01 20:14:11.607191: 
+INFO: 2026-05-01 20:14:11.607313: 
+INFO: 2026-05-01 20:14:11.607355: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/include/dart_api_dl.c.o
 
-INFO: 2026-04-28 22:48:56.124089: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/include/dart_api_dl.c.o
-INFO: 2026-04-28 22:48:56.124184: 
-INFO: 2026-04-28 22:48:56.124195: 
-INFO: 2026-04-28 22:48:56.124202: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.c.o
+INFO: 2026-05-01 20:14:11.608201: 
+INFO: 2026-05-01 20:14:11.608228: 
+INFO: 2026-05-01 20:14:11.608238: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.c.o
 
-INFO: 2026-04-28 22:48:56.138546: 
-INFO: 2026-04-28 22:48:56.138650: 
-INFO: 2026-04-28 22:48:56.138686: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/observer.m.o
+INFO: 2026-05-01 20:14:11.629406: 
+INFO: 2026-05-01 20:14:11.629441: 
+INFO: 2026-05-01 20:14:11.629451: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/observer.m.o
 
-INFO: 2026-04-28 22:48:56.146309: 
-INFO: 2026-04-28 22:48:56.146365: 
-INFO: 2026-04-28 22:48:56.146380: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/protocol.m.o
+INFO: 2026-05-01 20:14:11.635271: 
+INFO: 2026-05-01 20:14:11.635318: 
+INFO: 2026-05-01 20:14:11.635337: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/protocol.m.o
 
-INFO: 2026-04-28 22:48:56.211251: 
-INFO: 2026-04-28 22:48:56.211288: 
-INFO: 2026-04-28 22:48:56.211297: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.m.o
+INFO: 2026-05-01 20:14:11.707162: 
+INFO: 2026-05-01 20:14:11.707200: 
+INFO: 2026-05-01 20:14:11.707210: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/ns_number.m.o
 
-INFO: 2026-04-28 22:48:56.215873: 
-INFO: 2026-04-28 22:48:56.215907: 
-INFO: 2026-04-28 22:48:56.215918: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/ns_number.m.o
+INFO: 2026-05-01 20:14:11.713133: 
+INFO: 2026-05-01 20:14:11.713165: 
+INFO: 2026-05-01 20:14:11.713175: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/input_stream_adapter.m.o
 
-INFO: 2026-04-28 22:48:56.223489: 
-INFO: 2026-04-28 22:48:56.223535: 
-INFO: 2026-04-28 22:48:56.223552: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/input_stream_adapter.m.o
+INFO: 2026-05-01 20:14:11.718163: 
+INFO: 2026-05-01 20:14:11.718209: 
+INFO: 2026-05-01 20:14:11.718221: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.m.o
 
-INFO: 2026-04-28 22:48:56.244685: 
-INFO: 2026-04-28 22:48:56.244722: 
-INFO: 2026-04-28 22:48:56.244733: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c_bindings_generated.m.o
+INFO: 2026-05-01 20:14:11.727484: 
+INFO: 2026-05-01 20:14:11.727513: 
+INFO: 2026-05-01 20:14:11.727522: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c_bindings_generated.m.o
 
-INFO: 2026-04-28 22:48:56.245027: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/include/dart_api_dl.c.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.c.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/input_stream_adapter.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/observer.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/ns_number.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/protocol.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c_bindings_generated.m.o -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/objective_c.dylib
+INFO: 2026-05-01 20:14:11.727809: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -target arm64-apple-ios -mios-version-min=13 /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/include/dart_api_dl.c.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.c.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/input_stream_adapter.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/observer.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/ns_number.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/protocol.m.o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/obj/src/objective_c_bindings_generated.m.o -o /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/objective_c.dylib
 
-INFO: 2026-04-28 22:48:56.269259: 
-INFO: 2026-04-28 22:48:56.269305: ld: warning: -undefined dynamic_lookup is deprecated on iOS
+INFO: 2026-05-01 20:14:11.755893: 
+INFO: 2026-05-01 20:14:11.755944: ld: warning: -undefined dynamic_lookup is deprecated on iOS
 
-INFO: 2026-04-28 22:48:56.269316: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/objective_c.dylib
+INFO: 2026-05-01 20:14:11.755958: Generated /Users/efecancengiz/Desktop/PROJELER/LinguaChat/.dart_tool/hooks_runner/shared/objective_c/build/c43ab5f317/objective_c.dylib
 
