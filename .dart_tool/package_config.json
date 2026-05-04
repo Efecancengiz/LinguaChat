@@ -8,6 +8,12 @@
       "languageVersion": "3.2"
     },
     {
+      "name": "ansicolor",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/ansicolor-2.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "archive",
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/archive-4.0.9",
       "packageUri": "lib/",
@@ -138,6 +144,12 @@
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/crypto-3.0.7",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "csslib",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/csslib-1.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
     },
     {
       "name": "cupertino_icons",
@@ -344,6 +356,12 @@
       "languageVersion": "3.10"
     },
     {
+      "name": "flutter_native_splash",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/flutter_native_splash-2.4.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "flutter_plugin_android_lifecycle",
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.34",
       "packageUri": "lib/",
@@ -380,10 +398,46 @@
       "languageVersion": "3.9"
     },
     {
+      "name": "google_identity_services_web",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_identity_services_web-0.3.3+1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "google_mobile_ads",
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_mobile_ads-8.0.0",
       "packageUri": "lib/",
       "languageVersion": "3.10"
+    },
+    {
+      "name": "google_sign_in",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_sign_in-6.3.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "google_sign_in_android",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_sign_in_android-6.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "google_sign_in_ios",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_sign_in_ios-5.9.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "google_sign_in_platform_interface",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_sign_in_platform_interface-2.5.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "google_sign_in_web",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/google_sign_in_web-0.12.4+4",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
     },
     {
       "name": "hmssdk_flutter",
@@ -396,6 +450,12 @@
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/hooks-1.0.2",
       "packageUri": "lib/",
       "languageVersion": "3.10"
+    },
+    {
+      "name": "html",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/html-0.15.6",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
     },
     {
       "name": "http",
@@ -810,6 +870,12 @@
       "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/typed_data-1.4.0",
       "packageUri": "lib/",
       "languageVersion": "3.5"
+    },
+    {
+      "name": "universal_io",
+      "rootUri": "file:///Users/efecancengiz/.pub-cache/hosted/pub.dev/universal_io-2.3.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
     },
     {
       "name": "url_launcher",

@@ -62,6 +62,15 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.signInWithGoogle();
+
+    if (success && mounted) {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -310,6 +319,73 @@ class _LoginScreenState extends State<LoginScreen>
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
                                     ),
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // OR divider
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('VEYA', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                        ),
+                        Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Google login button
+                    Consumer<AuthProvider>(
+                      builder: (context, auth, _) {
+                        return Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: auth.isLoading ? null : _handleGoogleSignIn,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: auth.isLoading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.black,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.g_mobiledata, color: Colors.black87, size: 36),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Google ile Giriş Yap',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                           ),
                         );

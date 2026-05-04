@@ -290,6 +290,74 @@ class _PostCard extends StatelessWidget {
     required this.firestoreService,
   });
 
+  void _showReportDialog(BuildContext context) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Gönderiyi Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(
+            hintText: 'Şikayet nedeni...',
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
+          ),
+          style: const TextStyle(color: AppTheme.textPrimary),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) return;
+              await firestoreService.reportPost(post.id, currentUserId, reasonController.text.trim());
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Şikayetiniz alındı ve incelenecektir.')),
+                );
+              }
+            },
+            child: const Text('Gönder', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBlockDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
+        content: const Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await firestoreService.blockUser(currentUserId, post.userId);
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcı engellendi.')),
+                );
+              }
+            },
+            child: const Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showComments(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -435,7 +503,6 @@ class _PostCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (post.userId == currentUserId)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert_rounded,
                       color: AppTheme.textSecondary, size: 20),
@@ -481,19 +548,46 @@ class _PostCard extends StatelessWidget {
                           }
                         }
                       }
+                    } else if (value == 'report') {
+                      _showReportDialog(context);
+                    } else if (value == 'block') {
+                      _showBlockDialog(context);
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
-                          SizedBox(width: 8),
-                          Text('Sil', style: TextStyle(color: AppTheme.danger)),
-                        ],
+                    if (post.userId == currentUserId)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+                            SizedBox(width: 8),
+                            Text('Sil', style: TextStyle(color: AppTheme.danger)),
+                          ],
+                        ),
                       ),
-                    ),
+                    if (post.userId != currentUserId) ...[
+                      const PopupMenuItem(
+                        value: 'report',
+                        child: Row(
+                          children: [
+                            Icon(Icons.flag_rounded, color: AppTheme.warning, size: 20),
+                            SizedBox(width: 8),
+                            Text('Gönderiyi Şikayet Et', style: TextStyle(color: AppTheme.warning)),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'block',
+                        child: Row(
+                          children: [
+                            Icon(Icons.block_rounded, color: AppTheme.danger, size: 20),
+                            SizedBox(width: 8),
+                            Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.danger)),
+                          ],
+                        ),
+                      ),
+                    ]
                   ],
                 ),
             ],

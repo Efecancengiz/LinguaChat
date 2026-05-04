@@ -11,6 +11,7 @@ import 'package:linguachat/models/post_model.dart';
 import 'package:linguachat/models/user_model.dart';
 
 import 'dart:convert';
+import 'package:linguachat/services/storage_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:linguachat/services/firestore_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -43,25 +44,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 256,
-        maxHeight: 256,
-        imageQuality: 30,
       );
       if (image == null) return;
       
       setState(() => _isUploading = true);
 
-      final Uint8List imageBytes = await image.readAsBytes();
-      final String base64Image = "data:image/jpeg;base64,${base64Encode(imageBytes)}";
+      final storageService = StorageService();
+      final downloadUrl = await storageService.uploadProfileImage(uid, image);
       
-      final firestoreService = FirestoreService();
-      await firestoreService.updateProfilePhoto(uid, base64Image);
-      await auth.refreshUser();
+      if (downloadUrl != null) {
+        final firestoreService = FirestoreService();
+        await firestoreService.updateUser(uid, {'photoUrl': downloadUrl});
+        await auth.refreshUser();
 
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('Profil fotoğrafı güncellendi!', style: TextStyle(color: Colors.white)), backgroundColor: AppTheme.accent),
-        );
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Profil fotoğrafı güncellendi! ✅', style: TextStyle(color: Colors.white)), backgroundColor: AppTheme.accent),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -72,6 +72,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
+  }
+
+  void _showFullScreenProfilePicture(BuildContext context, String? photoUrl) {
+    if (photoUrl == null || photoUrl.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                color: Colors.transparent,
+                padding: const EdgeInsets.all(40),
+                child: Center(
+                  child: InteractiveViewer(
+                    clipBehavior: Clip.none,
+                    child: Hero(
+                      tag: 'profilePic_$photoUrl',
+                      child: ClipOval(
+                        child: photoUrl.startsWith('data:image')
+                            ? Image.memory(
+                                base64Decode(photoUrl.split(',').last),
+                                fit: BoxFit.cover,
+                                width: MediaQuery.of(context).size.width - 80,
+                                height: MediaQuery.of(context).size.width - 80,
+                              )
+                            : Image.network(
+                                photoUrl,
+                                fit: BoxFit.cover,
+                                width: MediaQuery.of(context).size.width - 80,
+                                height: MediaQuery.of(context).size.width - 80,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -173,6 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     radius: 50,
                     showOnlineIndicator: false,
                     isOnline: true,
+                    onTap: () => _showFullScreenProfilePicture(context, user.photoUrl),
                   ),
                   if (_isUploading)
                     const Positioned.fill(

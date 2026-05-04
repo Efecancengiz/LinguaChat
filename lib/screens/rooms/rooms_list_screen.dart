@@ -19,14 +19,13 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   static bool _roomsInitialized = false;
 
-  final List<String> _levels = [
-    'Tümü',
+  List<String> get _levels => [
     'Başlangıç (A1-A2)',
     'Orta (B1-B2)',
     'İleri (C1-C2)',
     'Ana Dil (C2+)'
   ];
-  String _selectedLevel = 'Tümü';
+  String _selectedLevel = 'Başlangıç (A1-A2)';
 
   @override
   void initState() {
@@ -72,16 +71,13 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
         // Seçilen seviyeye göre filtreleme (Özel odaları gizle)
         final filteredRooms = rooms.where((room) {
           if (room.isCustom) return false;
-          if (_selectedLevel == 'Tümü') {
-            return room.level == 'Tümü' || room.level == null;
-          }
           return room.level == _selectedLevel;
         }).toList();
 
         // Eğer veritabanı boşsa (örneğin offline durum) veya yüklenememişse, o anki filtrenin varsayılan odaları üretilsin
         final defaultRooms = AppConstants.languageRooms.map((room) {
           return {
-            'code': _selectedLevel == 'Tümü' ? room['code'] : '${room['code']}_$_selectedLevel',
+            'code': '${room['code']}_$_selectedLevel',
             'name': room['name'],
             'flag': room['flag'],
             'color': room['color'],

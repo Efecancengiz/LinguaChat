@@ -202,6 +202,39 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final userModel = await _authService.signInWithGoogle();
+      if (userModel != null) {
+        _user = userModel;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        // Kullanıcı iptal etti
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } on FirebaseAuthException catch (e) {
+      _error = _getErrorMessage(e.code);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      try { await _authService.signOut(); } catch (_) {}
+      _user = null;
+      _error = 'Beklenmeyen Hata: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> signOut() async {
     await _authService.signOut();
     _user = null;

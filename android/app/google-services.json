@@ -12,7 +12,20 @@
           "package_name": "com.linguachat.linguachat"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "657930323694-360abil7rc0mdbcs2lsgof3gsv01bnif.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.linguachat.linguachat",
+            "certificate_hash": "60328de253cddac4962392a9e800955738c0272a"
+          }
+        },
+        {
+          "client_id": "657930323694-jddp64ttkdprqpctsfphomoc55egf2bl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDS1UkyS85MpZxgYs03L--KjdrPb7NhAS8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "657930323694-jddp64ttkdprqpctsfphomoc55egf2bl.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "657930323694-gpoc1pdvue7v96ap8gljp2p71a0a3n6m.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.efecan.linguachat"
+              }
+            }
+          ]
         }
       }
     }

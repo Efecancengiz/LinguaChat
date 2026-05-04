@@ -467,24 +467,31 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
             ),
           if (widget.isCustom && widget.roomCode != null)
             const SizedBox(width: 4),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Center(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
+                  foregroundColor: AppTheme.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  minimumSize: const Size(0, 36),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.headset_mic_rounded, size: 16),
+                label: const Text('Sesli Katıl', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                onPressed: () {
+                  context.push(
+                    '/voice-room/${widget.roomId}',
+                    extra: {'name': widget.roomName},
+                  );
+                },
               ),
-              child: const Icon(Icons.headset_mic_rounded, color: AppTheme.primary, size: 20),
             ),
-            onPressed: () {
-              context.push(
-                '/voice-room/${widget.roomId}',
-                extra: {'name': widget.roomName},
-              );
-            },
-            tooltip: 'Sesli Odaya Katıl',
           ),
-          const SizedBox(width: 8),
         ],
       ),
             ),

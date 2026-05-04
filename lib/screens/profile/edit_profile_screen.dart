@@ -58,11 +58,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = authProvider.user;
     if (user == null) return;
 
-    // Capture context-dependent objects before async gap
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final router = GoRouter.of(context);
-
     setState(() => _isSaving = true);
+    debugPrint("Kaydet butonuna basıldı, _isSaving = true yapıldı.");
 
     try {
       final newDisplayName = _nameController.text.trim();
@@ -74,9 +71,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             user.displayName, 
             newDisplayName,
           );
-          
-          // Yeni isim başarıyla kaydedildi.
-          // Provider user objesi refreshUser ile en son adımı yansıtacak.
         } catch (e) {
           if (e.toString().contains('username-taken')) {
             throw Exception('Bu kullanıcı adı zaten alınmış.');
@@ -93,22 +87,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'interests': _interests,
       });
 
-      await authProvider.refreshUser();
+      // 1. Önce başarı mesajını göster (Widget hala aktifken)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil güncellendi! ✅')),
+      );
 
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('Profil güncellendi! ✅')),
-        );
-        router.pop();
+      // 2. Sayfayı kapat (GoRouter refresh yarışını engellemek için)
+      debugPrint("Geri dönme işlemi (pop/go) başlatılıyor...");
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/');
       }
+
+      // 3. Arka planda user'ı yenile
+      debugPrint("Firestore güncellendi. Kullanıcı verisi arka planda yenileniyor...");
+      authProvider.refreshUser();
+
     } catch (e) {
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('Hata: $e')),
-        );
-      }
+      debugPrint('Profil kaydetme hatası: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hata: $e')),
+      );
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      debugPrint("İşlem sonu (finally). _isSaving = false yapılıyor.");
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 

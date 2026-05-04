@@ -192,7 +192,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                 const SizedBox(height: 32),
                 Consumer<VoiceRoomTimerProvider>(
                   builder: (context, timer, child) {
-                    if (timer.remainingMinutes <= 20 && timer.remainingMinutes > 0) {
+                    if (!timer.isPremium && timer.remainingSeconds > 0) {
                       return Column(
                         children: [
                           Text(
@@ -201,17 +201,21 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '${timer.remainingMinutes} dakika',
+                            timer.formattedRemainingTime,
                             style: TextStyle(
-                              fontSize: 32, 
+                              fontSize: 40, 
                               color: timer.showWarning ? AppTheme.warning : Colors.white,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 2.0,
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
                         ],
                       );
+                    } else if (timer.isPremium) {
+                      return const Text('Sınırsız Premium Süre 🎉', style: TextStyle(color: AppTheme.accent, fontSize: 18));
                     }
-                    return const Text('Sınırsız Premium Süre 🎉', style: TextStyle(color: AppTheme.accent, fontSize: 18));
+                    return const SizedBox.shrink();
                   },
                 ),
                 const SizedBox(height: 64),

@@ -75,6 +75,25 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    if (!_acceptedPrivacyPolicy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen Gizlilik Politikası\'nı onaylayın.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
+
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.signInWithGoogle();
+
+    if (success && mounted) {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -276,9 +295,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                               height: 1.3,
                             ),
                             children: [
-                              const TextSpan(text: '13 yaşından büyük olduğumu ve '),
+                              const TextSpan(text: '13 yaşından büyük olduğumu, zararlı/istismar edici içeriklere karşı sıfır tolerans politikası uygulandığını anladığımı ve '),
                               TextSpan(
-                                text: 'Gizlilik Politikası\'nı',
+                                text: 'Gizlilik Politikası',
                                 style: const TextStyle(
                                   color: AppTheme.primary,
                                   fontWeight: FontWeight.w600,
@@ -291,7 +310,22 @@ class _RegisterScreenState extends State<RegisterScreen>
                                     }
                                   },
                               ),
-                              const TextSpan(text: ' okuyup kabul ettiğimi onaylıyorum.'),
+                              const TextSpan(text: ' ile '),
+                              TextSpan(
+                                text: 'EULA',
+                                style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () async {
+                                    final url = Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/');
+                                    if (await canLaunchUrl(url)) {
+                                      await launchUrl(url);
+                                    }
+                                  },
+                              ),
+                              const TextSpan(text: ' metinlerini okuyup kabul ettiğimi onaylıyorum.'),
                             ],
                           ),
                         ),
@@ -340,6 +374,73 @@ class _RegisterScreenState extends State<RegisterScreen>
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
                                   ),
+                                ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // OR divider
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('VEYA', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                      ),
+                      Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Google login button
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      return Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: auth.isLoading ? null : _handleGoogleSignIn,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.grey.shade300),
+                            ),
+                          ),
+                          child: auth.isLoading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.black,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.g_mobiledata, color: Colors.black87, size: 36),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Google ile Kayıt Ol',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                         ),
                       );

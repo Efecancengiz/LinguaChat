@@ -9,6 +9,7 @@ import 'package:linguachat/services/firestore_service.dart';
 import 'package:linguachat/models/friend_request_model.dart';
 import 'package:linguachat/widgets/user_avatar.dart';
 import 'package:linguachat/widgets/language_badge.dart';
+import 'dart:convert';
 import 'package:linguachat/models/post_model.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -95,8 +96,137 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     context.push('/dm/$chatId', extra: {'userId': widget.userId});
   }
 
+  void _showFullScreenProfilePicture(BuildContext context, String? photoUrl) {
+    if (photoUrl == null || photoUrl.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                color: Colors.transparent,
+                padding: const EdgeInsets.all(40),
+                child: Center(
+                  child: InteractiveViewer(
+                    clipBehavior: Clip.none,
+                    child: Hero(
+                      tag: 'userProfilePic_$photoUrl',
+                      child: ClipOval(
+                        child: photoUrl.startsWith('data:image')
+                            ? Image.memory(
+                                base64Decode(photoUrl.split(',').last),
+                                fit: BoxFit.cover,
+                                width: MediaQuery.of(context).size.width - 80,
+                                height: MediaQuery.of(context).size.width - 80,
+                              )
+                            : Image.network(
+                                photoUrl,
+                                fit: BoxFit.cover,
+                                width: MediaQuery.of(context).size.width - 80,
+                                height: MediaQuery.of(context).size.width - 80,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportDialog(BuildContext context, String currentUserId) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Kullanıcıyı Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(
+            hintText: 'Şikayet nedeni...',
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
+          ),
+          style: const TextStyle(color: AppTheme.textPrimary),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) return;
+              await _firestoreService.reportUser(widget.userId, currentUserId, reasonController.text.trim());
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Şikayetiniz alındı ve incelenecektir.')),
+                );
+              }
+            },
+            child: const Text('Gönder', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBlockDialog(BuildContext context, String currentUserId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
+        content: const Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _firestoreService.blockUser(currentUserId, widget.userId);
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcı engellendi.')),
+                );
+                context.pop(); // Go back from profile
+              }
+            },
+            child: const Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final currentUserId = context.watch<AuthProvider>().currentUserId;
+    final isMe = widget.userId == currentUserId;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -104,6 +234,42 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           onPressed: () => context.pop(),
         ),
         title: const Text('Profil'),
+        actions: [
+          if (!isMe && currentUserId != null)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (value) {
+                if (value == 'report') {
+                  _showReportDialog(context, currentUserId);
+                } else if (value == 'block') {
+                  _showBlockDialog(context, currentUserId);
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_rounded, color: AppTheme.warning, size: 20),
+                      SizedBox(width: 8),
+                      Text('Şikayet Et', style: TextStyle(color: AppTheme.warning)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'block',
+                  child: Row(
+                    children: [
+                      Icon(Icons.block_rounded, color: AppTheme.danger, size: 20),
+                      SizedBox(width: 8),
+                      Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+                    ],
+                  ),
+                ),
+              ],
+              color: AppTheme.surfaceLight,
+            ),
+        ],
       ),
       body: StreamBuilder<UserModel?>(
         stream: _firestoreService.userStream(widget.userId),
@@ -123,8 +289,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             );
           }
-          final isMe = widget.userId ==
-              context.read<AuthProvider>().currentUserId;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -137,6 +301,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   radius: 50,
                   showOnlineIndicator: true,
                   isOnline: user.isOnline,
+                  onTap: () => _showFullScreenProfilePicture(context, user.photoUrl),
                 ),
                 const SizedBox(height: 16),
                 Row(

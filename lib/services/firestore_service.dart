@@ -941,18 +941,26 @@ class FirestoreService {
   /// audience=='everyone' olanları client-side filtreler;
   /// bu sayede Firestore composite index gerektirmez ve
   /// eski geri dönüşsüz gönderiler de (audience alanı olmayan) herkese görünür.
-  Stream<List<PostModel>> getFeedPostsStream(String currentUserId) {
-    return _firestore
-        .collection('posts')
-        .orderBy('createdAt', descending: true)
-        .limit(50)
+  Stream<List<PostModel>> getFeedPostsStream(String currentUserId) async* {
+    yield* _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
         .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map((doc) => PostModel.fromFirestore(doc))
-              .where((post) => post.audience == 'everyone')
-              .toList();
-        });
+        .asyncExpand((blockedSnap) {
+      final blockedIds = blockedSnap.docs.map((d) => d.id).toSet();
+      return _firestore
+          .collection('posts')
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs
+            .map((doc) => PostModel.fromFirestore(doc))
+            .where((post) => post.audience == 'everyone' && !blockedIds.contains(post.userId))
+            .toList();
+      });
+    });
   }
 
   /// Arkadaşların gönderilerini gerçek zamanlı stream ile getir
@@ -965,7 +973,12 @@ class FirestoreService {
         .collection('userFriends')
         .get();
     final friendIds = friendsSnap.docs.map((d) => d.id).toList();
-    final ids = [currentUserId, ...friendIds];
+    
+    // Engellenenleri bul
+    final blockedSnap = await _firestore.collection('users').doc(currentUserId).collection('blockedUsers').get();
+    final blockedIds = blockedSnap.docs.map((d) => d.id).toSet();
+    
+    final ids = [currentUserId, ...friendIds].where((id) => !blockedIds.contains(id)).toList();
     final batchIds = ids.take(30).toList();
 
     if (batchIds.isEmpty) {
@@ -985,25 +998,34 @@ class FirestoreService {
 
   /// Arkadaşlar + kendinin gönderilerini Stream olarak getir (İndeks hatasını önlemek için client-side filtreleme)
   Stream<List<PostModel>> getFriendsFeedStream2(String currentUserId) async* {
-    final friendsSnap = await _firestore
-        .collection('friends')
-        .doc(currentUserId)
-        .collection('userFriends')
-        .get();
-    final friendIds = friendsSnap.docs.map((d) => d.id).toList();
-    // Kendi UID'ini her zaman dahil et
-    final allowedIds = {currentUserId, ...friendIds};
-
     yield* _firestore
-        .collection('posts')
-        .orderBy('createdAt', descending: true)
-        .limit(100)
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
         .snapshots()
-        .map((snap) =>
-            snap.docs
-                .map((doc) => PostModel.fromFirestore(doc))
-                .where((post) => allowedIds.contains(post.userId))
-                .toList());
+        .asyncExpand((blockedSnap) {
+      final blockedIds = blockedSnap.docs.map((d) => d.id).toSet();
+      return Stream.fromFuture(_firestore
+          .collection('friends')
+          .doc(currentUserId)
+          .collection('userFriends')
+          .get()).asyncExpand((friendsSnap) {
+        final friendIds = friendsSnap.docs.map((d) => d.id).toList();
+        final allowedIds = {currentUserId, ...friendIds}.difference(blockedIds);
+
+        return _firestore
+            .collection('posts')
+            .orderBy('createdAt', descending: true)
+            .limit(100)
+            .snapshots()
+            .map((snap) {
+          return snap.docs
+              .map((doc) => PostModel.fromFirestore(doc))
+              .where((post) => allowedIds.contains(post.userId))
+              .toList();
+        });
+      });
+    });
   }
 
   /// Belirli bir kullanıcının gönderilerini getir
@@ -1293,5 +1315,85 @@ class FirestoreService {
     yield* Stream.periodic(const Duration(seconds: 60), (_) {}).asyncMap((_) async {
       return await getOnlineUsersCount();
     });
+  }
+
+  // ============ BLOCKING & REPORTING (UGC Requirements) ============
+
+  Future<void> blockUser(String currentUserId, String targetUserId) async {
+    try {
+      await _firestore.collection('users').doc(currentUserId).collection('blockedUsers').doc(targetUserId).set({
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Engellendiğinde takipten çıkarma işlemleri vs yapılabilir
+      final followingRef = _firestore.collection('users').doc(currentUserId).collection('following').doc(targetUserId);
+      if ((await followingRef.get()).exists) {
+        await unfollowUser(currentUserId, targetUserId);
+      }
+    } catch (e) {
+      debugPrint('FirestoreService.blockUser hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> unblockUser(String currentUserId, String targetUserId) async {
+    try {
+      await _firestore.collection('users').doc(currentUserId).collection('blockedUsers').doc(targetUserId).delete();
+    } catch (e) {
+      debugPrint('FirestoreService.unblockUser hata: $e');
+      rethrow;
+    }
+  }
+
+  Stream<bool> isBlockedStream(String currentUserId, String targetUserId) {
+    return _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
+        .doc(targetUserId)
+        .snapshots()
+        .map((doc) => doc.exists);
+  }
+  
+  Future<List<String>> getBlockedUserIds(String currentUserId) async {
+    try {
+      final snap = await _firestore.collection('users').doc(currentUserId).collection('blockedUsers').get();
+      return snap.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      debugPrint('FirestoreService.getBlockedUserIds hata: $e');
+      return [];
+    }
+  }
+
+  Future<void> reportUser(String reportedUserId, String reporterId, String reason) async {
+    try {
+      await _firestore.collection('reports').add({
+        'type': 'user',
+        'reportedUserId': reportedUserId,
+        'reporterId': reporterId,
+        'reason': reason,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.reportUser hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> reportPost(String postId, String reporterId, String reason) async {
+    try {
+      await _firestore.collection('reports').add({
+        'type': 'post',
+        'postId': postId,
+        'reporterId': reporterId,
+        'reason': reason,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.reportPost hata: $e');
+      rethrow;
+    }
   }
 }
