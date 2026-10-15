@@ -36,9 +36,10 @@ flutter pub get
 # iOS Simülatöründe veya cihazda çalıştırın
 flutter run
 ```
-👨‍💻 Geliştirici
-Web Sitesi: efecancengiz.com.tr
+---
 
-LinkedIn: linkedin.com/in/efecan-cengiz-26a7282b5
+### 👨‍💻 Geliştirici
 
-E-Posta: efecancengiz034@gmail.com
+* **Web Sitesi:** [efecancengiz.com.tr](https://efecancengiz.com.tr)
+* **LinkedIn:** [linkedin.com/in/efecan-cengiz-26a7282b5](https://www.linkedin.com/in/efecan-cengiz-26a7282b5)
+* **E-Posta:** efecancengiz034@gmail.com
