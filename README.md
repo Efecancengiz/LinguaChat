@@ -38,5 +38,7 @@ flutter run
 ```
 👨‍💻 Geliştirici
 Web Sitesi: efecancengiz.com.tr
+
 LinkedIn: linkedin.com/in/efecan-cengiz-26a7282b5
+
 E-Posta: efecancengiz034@gmail.com
