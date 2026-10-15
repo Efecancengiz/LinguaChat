@@ -1,21 +1,21 @@
-# 📱 LinguaChat - Mobil Dil Pratik Uygulaması
+# 📱 LinguaChat - iOS Dil Pratik Uygulaması
 
-LinguaChat, kullanıcıların dil becerilerini interaktif şekilde pratik yaparak geliştirmelerini sağlayan modern, cross-platform bir mobil uygulamadır.
+LinguaChat, kullanıcıların dil becerilerini interaktif şekilde pratik yaparak geliştirmelerini sağlayan modern bir iOS mobil uygulamasıdır.
 
 ---
 
 ### 🚀 Temel Özellikler
 - **İnteraktif Pratik Modülleri:** Kullanıcıların aktif pratik yapabileceği ekranlar ve akışlar.
 - **Kullanıcı Yönetimi:** Güvenli kayıt, giriş ve kullanıcı profili yönetimi.
-- **Modern UI/UX:** Temiz, kullanıcı dostu ve akıcı arayüz tasarımı.
-- **Çoklu Platform Desteği:** iOS ve Android ekosistemine tam uyumluluk.
+- **Modern UI/UX:** iOS tasarım standartlarına uygun, akıcı ve kullanıcı dostu arayüz.
+- **Platform:** iOS (App Store uyumlu mimari)
 
 ---
 
 ### 🛠️ Kullanılan Teknolojiler
 - **Framework:** Flutter & Dart
 - **Backend / Bulut:** Firebase (Authentication, Cloud Firestore)
-- **Platformlar:** iOS & Android
+- **Hedef Platform:** iOS
 
 ---
 
@@ -33,5 +33,5 @@ cd LinguaChat
 # Bağımlılıkları yükleyin
 flutter pub get
 
-# Uygulamayı çalıştırın
+# iOS Simülatöründe veya cihazda çalıştırın
 flutter run
