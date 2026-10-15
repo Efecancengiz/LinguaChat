@@ -7,7 +7,15 @@ import 'package:linguachat/models/user_model.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  bool _isGoogleSignInInitialized = false;
+
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (!_isGoogleSignInInitialized) {
+      await _googleSignIn.initialize();
+      _isGoogleSignInInitialized = true;
+    }
+  }
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -17,7 +25,7 @@ class AuthService {
     required String password,
     required String displayName,
   }) async {
-    final usernameDocRef = _firestore.collection('usernames').doc(displayName);
+    final usernameDocRef = _firestore.collection('usernames').doc(displayName.toLowerCase());
 
     // Hızlı kontrol
     final usernameDoc = await usernameDocRef.get();
@@ -71,12 +79,29 @@ class AuthService {
       password: password,
     );
 
-    await _firestore.collection('users').doc(credential.user!.uid).set({
-      'isOnline': true,
-      'lastSeen': FieldValue.serverTimestamp(),
-      'email': credential.user!.email ?? email,
-      // We don't overwrite displayName if it exists, so merge guarantees safety.
-    }, SetOptions(merge: true));
+    try {
+      await _firestore.collection('users').doc(credential.user!.uid).update({
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+        'email': credential.user!.email ?? email,
+      });
+    } catch (e) {
+      // Document might not exist (e.g. manually created test account). 
+      // Create it fully to pass Firestore security rules.
+      final userModel = UserModel(
+        uid: credential.user!.uid,
+        email: credential.user!.email ?? email,
+        displayName: credential.user!.displayName ?? credential.user!.email?.split('@').first ?? 'Kullanıcı',
+        isOnline: true,
+        createdAt: DateTime.now(),
+      );
+      await _firestore.collection('users').doc(credential.user!.uid).set(userModel.toFirestore());
+      if (userModel.displayName.isNotEmpty) {
+        try {
+          await _firestore.collection('usernames').doc(userModel.displayName.toLowerCase()).set({'uid': userModel.uid});
+        } catch (_) {}
+      }
+    }
 
     final doc = await _firestore
         .collection('users')
@@ -84,60 +109,6 @@ class AuthService {
         .get();
 
     return UserModel.fromFirestore(doc);
-  }
-
-  Future<UserModel?> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null; // Kapatıldı
-
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-    final OAuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    final UserCredential userCredential = await _auth.signInWithCredential(credential);
-    final User? user = userCredential.user;
-
-    if (user != null) {
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-
-      if (!userDoc.exists) {
-        // Yeni kullanıcı oluştur (Google bilgileriyle)
-        String baseDisplayName = user.displayName?.replaceAll(' ', '').toLowerCase() ?? user.email?.split('@').first ?? 'user';
-        String displayName = baseDisplayName;
-        
-        // Benzersiz kullanıcı adı kontrolü
-        final usernameDocRef = _firestore.collection('usernames').doc(displayName);
-        final usernameDoc = await usernameDocRef.get();
-        if (usernameDoc.exists) {
-          displayName = '${baseDisplayName}_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-        }
-
-        await _firestore.collection('usernames').doc(displayName).set({'uid': user.uid});
-
-        final userModel = UserModel(
-          uid: user.uid,
-          email: user.email ?? '',
-          displayName: displayName,
-          isOnline: true,
-          createdAt: DateTime.now(),
-        );
-
-        await _firestore.collection('users').doc(user.uid).set(userModel.toFirestore());
-        return userModel;
-      } else {
-        // Var olan kullanıcı
-        await _firestore.collection('users').doc(user.uid).set({
-          'isOnline': true,
-          'lastSeen': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        final updatedDoc = await _firestore.collection('users').doc(user.uid).get();
-        return UserModel.fromFirestore(updatedDoc);
-      }
-    }
-    return null;
   }
 
   Future<void> signOut() async {
@@ -151,13 +122,86 @@ class AuthService {
         // Ignore if document not found or permissions fail
       }
     }
-    await Future.wait([
-      _googleSignIn.signOut(),
-      _auth.signOut(),
-    ]);
+    try {
+      await _ensureGoogleSignInInitialized();
+      await _googleSignIn.signOut();
+    } catch (_) {}
+    await _auth.signOut();
   }
 
   Future<void> resetPassword(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
+  }
+
+  Future<UserModel> signInWithGoogle() async {
+    // Google oturum açma eklentisini ilklendir
+    await _ensureGoogleSignInInitialized();
+
+    // Google oturum açma akışını tetikle
+    final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+
+    // İstekten kimlik doğrulama detaylarını al
+    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+
+    // Yeni bir Firebase kimliği oluştur
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+    );
+
+    // Firebase ile oturum aç
+    final UserCredential userCredential = await _auth.signInWithCredential(credential);
+    final User? firebaseUser = userCredential.user;
+
+    if (firebaseUser == null) {
+      throw Exception('Firebase oturumu açılamadı.');
+    }
+
+    // Firestore'da kullanıcının zaten mevcut olup olmadığını kontrol et
+    final userDocRef = _firestore.collection('users').doc(firebaseUser.uid);
+    final userDoc = await userDocRef.get();
+
+    UserModel userModel;
+    if (!userDoc.exists) {
+      // İlk defa Google ile giren kullanıcı: usernames ve users dökümanlarını oluştur
+      String baseName = firebaseUser.displayName ?? firebaseUser.email?.split('@').first ?? 'Kullanıcı';
+      // Kullanıcı adından geçersiz karakterleri temizle
+      baseName = baseName.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
+      if (baseName.isEmpty) baseName = 'user';
+      
+      // Benzersiz kullanıcı adı üret (zaten varsa sonuna sayı ekle)
+      String uniqueName = baseName;
+      int suffix = 1;
+      while (true) {
+        final check = await _firestore.collection('usernames').doc(uniqueName.toLowerCase()).get();
+        if (!check.exists) {
+          break;
+        }
+        uniqueName = '$baseName$suffix';
+        suffix++;
+      }
+
+      // Önce usernames kaydını oluştur
+      await _firestore.collection('usernames').doc(uniqueName.toLowerCase()).set({'uid': firebaseUser.uid});
+
+      userModel = UserModel(
+        uid: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        displayName: uniqueName,
+        photoUrl: firebaseUser.photoURL ?? '',
+        isOnline: true,
+        createdAt: DateTime.now(),
+      );
+
+      await userDocRef.set(userModel.toFirestore());
+    } else {
+      // Zaten mevcut olan kullanıcı: durumunu online yap ve güncelle
+      await userDocRef.update({
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
+      userModel = UserModel.fromFirestore(userDoc);
+    }
+
+    return userModel;
   }
 }

@@ -16,21 +16,31 @@ class UserModel {
   final int followersCount;
   final int followingCount;
   final int postsCount;
+  final bool isAdmin;
+  final bool isBanned;
+  final String? banReason;
   
   bool get isOnline {
-    if (lastSeen != null) {
-      if (DateTime.now().difference(lastSeen!) < const Duration(minutes: 2)) {
-        return true;
+    if (_isOnlineRaw) {
+      if (lastSeen != null) {
+        final diff = DateTime.now().difference(lastSeen!).inMinutes.abs();
+        if (diff < 10) {
+          return true;
+        }
+        return false;
       }
-      return false; 
+      return true;
     }
-    return _isOnlineRaw;
+    return false;
   }
   final DateTime createdAt;
   final bool isPremium;
   final DateTime? premiumEndDate;
   final int dailyVoiceMinutes;
+  final int dailyVoiceSeconds;
   final DateTime lastResetDate;
+  final int bonusMinutes;
+  final DateTime? lastSpinDate;
 
   UserModel({
     required this.uid,
@@ -48,10 +58,16 @@ class UserModel {
     this.isPremium = false,
     this.premiumEndDate,
     this.dailyVoiceMinutes = 0,
+    this.dailyVoiceSeconds = 0,
     DateTime? lastResetDate,
+    this.bonusMinutes = 0,
+    this.lastSpinDate,
     this.followersCount = 0,
     this.followingCount = 0,
     this.postsCount = 0,
+    this.isAdmin = false,
+    this.isBanned = false,
+    this.banReason,
   })  : _isOnlineRaw = isOnline,
         createdAt = createdAt ?? DateTime.now(),
         lastResetDate = lastResetDate ?? DateTime.now();
@@ -85,7 +101,6 @@ class UserModel {
         if (item is Map) {
           parsedLearning.add(item.map((k, v) => MapEntry(k.toString(), v.toString())));
         } else if (item is String) {
-          // Migrate old format: plain string -> map with no level
           parsedLearning.add({'lang': item, 'level': 'Başlangıç'});
         }
       }
@@ -126,6 +141,13 @@ class UserModel {
       parsedPremiumEndDate = DateTime.tryParse(data['premiumEndDate']);
     }
 
+    DateTime? parsedLastSpinDate;
+    if (data['lastSpinDate'] is Timestamp) {
+      parsedLastSpinDate = (data['lastSpinDate'] as Timestamp).toDate();
+    } else if (data['lastSpinDate'] is String) {
+      parsedLastSpinDate = DateTime.tryParse(data['lastSpinDate']);
+    }
+
     return UserModel(
       uid: doc.id,
       email: data['email']?.toString() ?? '',
@@ -142,10 +164,16 @@ class UserModel {
       isPremium: data['isPremium'] == true,
       premiumEndDate: parsedPremiumEndDate,
       dailyVoiceMinutes: data['dailyVoiceMinutes'] as int? ?? 0,
+      dailyVoiceSeconds: data['dailyVoiceSeconds'] as int? ?? 0,
       lastResetDate: parsedLastResetDate,
+      bonusMinutes: data['bonusMinutes'] as int? ?? 0,
+      lastSpinDate: parsedLastSpinDate,
       followersCount: data['followersCount'] as int? ?? 0,
       followingCount: data['followingCount'] as int? ?? 0,
       postsCount: data['postsCount'] as int? ?? 0,
+      isAdmin: data['isAdmin'] == true,
+      isBanned: data['isBanned'] == true,
+      banReason: data['banReason']?.toString(),
     );
   }
 
@@ -166,10 +194,16 @@ class UserModel {
       'isPremium': isPremium,
       'premiumEndDate': premiumEndDate != null ? Timestamp.fromDate(premiumEndDate!) : null,
       'dailyVoiceMinutes': dailyVoiceMinutes,
+      'dailyVoiceSeconds': dailyVoiceSeconds,
       'lastResetDate': Timestamp.fromDate(lastResetDate),
+      'bonusMinutes': bonusMinutes,
+      'lastSpinDate': lastSpinDate != null ? Timestamp.fromDate(lastSpinDate!) : null,
       'followersCount': followersCount,
       'followingCount': followingCount,
       'postsCount': postsCount,
+      'isAdmin': isAdmin,
+      'isBanned': isBanned,
+      if (banReason != null) 'banReason': banReason,
     };
   }
 
@@ -186,10 +220,16 @@ class UserModel {
     bool? isPremium,
     DateTime? premiumEndDate,
     int? dailyVoiceMinutes,
+    int? dailyVoiceSeconds,
     DateTime? lastResetDate,
+    int? bonusMinutes,
+    DateTime? lastSpinDate,
     int? followersCount,
     int? followingCount,
     int? postsCount,
+    bool? isAdmin,
+    bool? isBanned,
+    String? banReason,
   }) {
     return UserModel(
       uid: uid,
@@ -208,9 +248,14 @@ class UserModel {
       premiumEndDate: premiumEndDate ?? this.premiumEndDate,
       dailyVoiceMinutes: dailyVoiceMinutes ?? this.dailyVoiceMinutes,
       lastResetDate: lastResetDate ?? this.lastResetDate,
+      bonusMinutes: bonusMinutes ?? this.bonusMinutes,
+      lastSpinDate: lastSpinDate ?? this.lastSpinDate,
       followersCount: followersCount ?? this.followersCount,
       followingCount: followingCount ?? this.followingCount,
       postsCount: postsCount ?? this.postsCount,
+      isAdmin: isAdmin ?? this.isAdmin,
+      isBanned: isBanned ?? this.isBanned,
+      banReason: banReason ?? this.banReason,
     );
   }
 }

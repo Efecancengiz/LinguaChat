@@ -14,32 +14,49 @@ import 'package:linguachat/services/firestore_service.dart';
 import 'package:linguachat/config/constants.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTab;
+  const HomeScreen({super.key, this.initialTab = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   final FirestoreService _firestoreService = FirestoreService();
 
-  final List<Widget> _screens = const [
-    FeedScreen(),
-    RoomsListScreen(),
-    DmListScreen(),
-    NetworkScreen(),
-    ProfileScreen(),
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialTab;
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      _currentIndex = widget.initialTab;
+    }
+  }
+
+  final List<Widget> _screens = [
+    const FeedScreen(),
+    const RoomsListScreen(),
+    const DmListScreen(),
+    const NetworkScreen(),
+    const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.user;
     final userName = user?.displayName ?? 'Kullanıcı';
 
+    // AuthProvider yüklendikten sonra ana ekranı oluştur
+
     return Scaffold(
-      extendBody: true,
-      extendBodyBehindAppBar: true,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         flexibleSpace: ClipRect(
           child: BackdropFilter(
@@ -47,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(color: Colors.transparent),
           ),
         ),
-        backgroundColor: AppTheme.background.withValues(alpha: 0.65),
+        backgroundColor: AppTheme.isDark ? Colors.black.withValues(alpha: 0.8) : AppTheme.background.withValues(alpha: 0.85),
         elevation: 0,
         title: Row(
           children: [
@@ -83,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Flexible(
                         child: Text(
                           'Merhaba, $userName 👋',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
@@ -111,8 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ],
                   ),
-                  const Text(
-                    'LinguaChat',
+                  Text(
+                    'WorldPals',
                     style: TextStyle(
                       fontSize: 11,
                       color: AppTheme.textSecondary,
@@ -131,6 +148,17 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.workspace_premium_rounded, color: Colors.amber, size: 20),
               label: const Text('Premium', style: TextStyle(color: Colors.amber)),
             ),
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.casino, color: Colors.amber, size: 20),
+            ),
+            onPressed: () => context.push('/fortune-wheel'),
+          ),
           IconButton(
             icon: Container(
               padding: const EdgeInsets.all(8),
@@ -157,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: AppTheme.surfaceGradient,
         ),
         child: IndexedStack(
@@ -173,17 +201,17 @@ class _HomeScreenState extends State<HomeScreen> {
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
               decoration: BoxDecoration(
-                color: AppTheme.surface.withValues(alpha: 0.65),
+                color: AppTheme.surface.withValues(alpha: AppTheme.isDark ? 0.95 : 0.90),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: AppTheme.border.withValues(alpha: 0.5),
-                  width: 0.5,
+                  color: AppTheme.border,
+                  width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: Colors.black.withValues(alpha: AppTheme.isDark ? 0.4 : 0.06),
                     blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -252,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppTheme.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -260,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Özel Oda İşlemleri',
               style: TextStyle(
                 fontSize: 20,
@@ -332,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
+                Text(
                   'Özel Oda Oluştur',
                   style: TextStyle(
                     fontSize: 20,
@@ -344,10 +372,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 24),
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: AppTheme.textPrimary),
+                  style: TextStyle(color: AppTheme.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Oda Adı',
-                    labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     filled: true,
                     fillColor: AppTheme.surfaceLight,
                     border: OutlineInputBorder(
@@ -362,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   dropdownColor: AppTheme.surfaceLight,
                   decoration: InputDecoration(
                     labelText: 'Dil Seçimi',
-                    labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     filled: true,
                     fillColor: AppTheme.surfaceLight,
                     border: OutlineInputBorder(
@@ -373,9 +401,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   items: AppConstants.languageRooms.map((room) {
                     return DropdownMenuItem<String>(
                       value: room['code'] as String,
-                      child: Text(
-                        '${room['flag']} ${room['name']}',
-                        style: const TextStyle(color: AppTheme.textPrimary),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            room['flag'] as String,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            room['name'] as String,
+                            style: TextStyle(color: AppTheme.textPrimary),
+                          ),
+                        ],
                       ),
                     );
                   }).toList(),
@@ -446,16 +484,16 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Odaya Katıl', style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('Odaya Katıl', style: TextStyle(color: AppTheme.textPrimary)),
         content: TextField(
           controller: codeController,
-          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 20, letterSpacing: 2),
+          style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, letterSpacing: 2),
           textAlign: TextAlign.center,
           textCapitalization: TextCapitalization.characters,
           maxLength: 6,
           decoration: InputDecoration(
             hintText: '6 Haneli Kod',
-            hintStyle: const TextStyle(color: AppTheme.textSecondary, letterSpacing: 0, fontSize: 16),
+            hintStyle: TextStyle(color: AppTheme.textSecondary, letterSpacing: 0, fontSize: 16),
             filled: true,
             fillColor: AppTheme.surfaceLight,
             border: OutlineInputBorder(
@@ -468,7 +506,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {

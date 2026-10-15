@@ -41,6 +41,16 @@ class _DmChatScreenState extends State<DmChatScreen> {
     super.initState();
     // Bu sohbet açıkken bildirim gelmesin
     MessageListenerService.setActiveChatId(widget.chatId);
+    
+    // Sohbet açıldığında okunmuş olarak işaretle (out-of-sync durumlarını düzeltmek için)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final currentUserId = context.read<AuthProvider>().currentUserId;
+        if (currentUserId != null) {
+          _firestoreService.markChatAsRead(widget.chatId, currentUserId);
+        }
+      }
+    });
   }
 
   void _showLanguagePickerAndTranslate() {
@@ -60,7 +70,7 @@ class _DmChatScreenState extends State<DmChatScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Hangi dile çevrilsin?',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
@@ -77,7 +87,7 @@ class _DmChatScreenState extends State<DmChatScreen> {
                     final lang = AppConstants.languageRooms[index];
                     return ListTile(
                       leading: Text(lang['flag'] as String, style: const TextStyle(fontSize: 24)),
-                      title: Text(lang['name'] as String, style: const TextStyle(color: AppTheme.textPrimary)),
+                      title: Text(lang['name'] as String, style: TextStyle(color: AppTheme.textPrimary)),
                       onTap: () {
                         Navigator.pop(ctx);
                         _translateInput(lang['code'] as String);
@@ -123,8 +133,11 @@ class _DmChatScreenState extends State<DmChatScreen> {
     }
   }
 
-  void _showMessageOptions(MessageModel message) {
-    if (DateTime.now().difference(message.timestamp).inMinutes > 10) {
+  void _showMessageOptions(MessageModel message, bool isMe) {
+    final currentUser = context.read<AuthProvider>().user;
+    final isAdmin = currentUser?.isAdmin == true;
+
+    if (isMe && !isAdmin && DateTime.now().difference(message.timestamp).inMinutes > 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Sadece ilk 10 dakika içindeki mesajları düzenleyebilir veya silebilirsiniz.'),
@@ -145,26 +158,123 @@ class _DmChatScreenState extends State<DmChatScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.edit_rounded, color: AppTheme.primary),
-                title: const Text('Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showEditMessageDialog(message);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_rounded, color: AppTheme.danger),
-                title: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showDeleteConfirmDialog(message);
-                },
-              ),
+              if (isMe) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit_rounded, color: AppTheme.primary),
+                  title: Text('Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showEditMessageDialog(message);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_rounded, color: AppTheme.danger),
+                  title: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showDeleteConfirmDialog(message);
+                  },
+                ),
+              ] else ...[
+                if (isAdmin) ...[
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever_rounded, color: AppTheme.danger),
+                    title: const Text('Yönetici Olarak Sil 🗑️', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.bold)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (c) => AlertDialog(
+                          backgroundColor: AppTheme.surface,
+                          title: Text('Yönetici Olarak Sil', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                          content: Text('Bu özel mesajı yönetici yetkisiyle kalıcı olarak silmek istediğinizden emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c, false),
+                              child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+                              onPressed: () => Navigator.pop(c, true),
+                              child: const Text('Sil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        try {
+                          await _firestoreService.adminDeleteDmMessage(widget.chatId, message.id);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('DM mesajı yönetici tarafından silindi! ✅')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Silinirken hata oluştu: $e')),
+                            );
+                          }
+                        }
+                      }
+                    },
+                  ),
+                ],
+                ListTile(
+                  leading: const Icon(Icons.flag_rounded, color: AppTheme.danger),
+                  title: const Text('Mesajı Şikayet Et', style: TextStyle(color: AppTheme.danger)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showReportMessageDialog(message);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.block_rounded, color: AppTheme.danger),
+                  title: const Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.danger)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showBlockDialog(context, context.read<AuthProvider>().currentUserId ?? '', widget.otherUserId);
+                  },
+                ),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+
+  void _showReportMessageDialog(MessageModel message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLight,
+        title: Text('Mesajı Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu mesajı sakıncalı içerik olarak bildirmek istiyor musunuz? Geri bildiriminiz için teşekkür ederiz.', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final currentUserId = context.read<AuthProvider>().currentUserId;
+              if (currentUserId != null) {
+                await _firestoreService.reportMessage(message.id, currentUserId, message.text);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Mesaj şikayet edildi. İncelenmek üzere iletildi.'), backgroundColor: AppTheme.primary),
+                  );
+                }
+              }
+            },
+            child: const Text('Şikayet Et', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -174,15 +284,15 @@ class _DmChatScreenState extends State<DmChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceLight,
-        title: const Text('Mesajı Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('Mesajı Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
         content: TextField(
           controller: editController,
-          style: const TextStyle(color: AppTheme.textPrimary),
+          style: TextStyle(color: AppTheme.textPrimary),
           maxLines: 3,
           minLines: 1,
           decoration: InputDecoration(
             hintText: 'Mesajınız...',
-            hintStyle: const TextStyle(color: AppTheme.textSecondary),
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
             filled: true,
             fillColor: AppTheme.surface,
             border: OutlineInputBorder(
@@ -194,7 +304,7 @@ class _DmChatScreenState extends State<DmChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
@@ -217,15 +327,15 @@ class _DmChatScreenState extends State<DmChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceLight,
-        title: const Text('Mesajı Sil', style: TextStyle(color: AppTheme.textPrimary)),
-        content: const Text(
+        title: Text('Mesajı Sil', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text(
           'Bu mesajı silmek istediğinize emin misiniz? (Karşı taraftan da silinir)',
           style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
@@ -269,6 +379,75 @@ class _DmChatScreenState extends State<DmChatScreen> {
         );
       }
     }
+  }
+
+  void _showReportDialog(BuildContext context, String currentUserId, String otherUserId) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text('Kullanıcıyı Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        content: TextField(
+          controller: reasonController,
+          decoration: InputDecoration(
+            hintText: 'Şikayet nedeni...',
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
+          ),
+          style: TextStyle(color: AppTheme.textPrimary),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) return;
+              await _firestoreService.reportUser(otherUserId, currentUserId, reasonController.text.trim());
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Şikayetiniz alındı ve incelenecektir.')),
+                );
+              }
+            },
+            child: const Text('Gönder', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBlockDialog(BuildContext context, String currentUserId, String otherUserId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _firestoreService.blockUser(currentUserId, otherUserId);
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcı engellendi.')),
+                );
+                context.pop(); // Go back from chat
+              }
+            },
+            child: const Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -320,7 +499,7 @@ class _DmChatScreenState extends State<DmChatScreen> {
                     children: [
                       Text(
                         otherUser?.displayName ?? 'Kullanıcı',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.textPrimary,
@@ -351,33 +530,70 @@ class _DmChatScreenState extends State<DmChatScreen> {
             stream: _firestoreService.userStream(widget.otherUserId),
             builder: (context, snapshot) {
               final otherUserName = snapshot.data?.displayName ?? 'Özel Görüşme';
-              return IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.headset_mic_rounded, color: AppTheme.primary, size: 20),
+                    ),
+                    onPressed: () {
+                       context.push(
+                         '/voice-room/${widget.chatId}',
+                         extra: {'name': otherUserName},
+                       );
+                    },
+                    tooltip: 'Sesli Odaya Katıl',
                   ),
-                  child: const Icon(Icons.headset_mic_rounded, color: AppTheme.primary, size: 20),
-                ),
-                onPressed: () {
-                   context.push(
-                     '/voice-room/${widget.chatId}',
-                     extra: {'name': otherUserName},
-                   );
-                },
-                tooltip: 'Sesli Odaya Katıl',
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onSelected: (value) async {
+                      if (value == 'report') {
+                        _showReportDialog(context, currentUserId ?? '', widget.otherUserId);
+                      } else if (value == 'block') {
+                        _showBlockDialog(context, currentUserId ?? '', widget.otherUserId);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'report',
+                        child: Row(
+                          children: [
+                            Icon(Icons.flag_rounded, color: AppTheme.warning, size: 20),
+                            SizedBox(width: 8),
+                            Text('Şikayet Et', style: TextStyle(color: AppTheme.warning)),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'block',
+                        child: Row(
+                          children: [
+                            Icon(Icons.block_rounded, color: AppTheme.danger, size: 20),
+                            SizedBox(width: 8),
+                            Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+                          ],
+                        ),
+                      ),
+                    ],
+                    color: AppTheme.surfaceLight,
+                  ),
+                ],
               );
             }
           ),
-          const SizedBox(width: 8),
         ],
       ),
             ),
           ),
         ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: AppTheme.surfaceGradient,
         ),
         child: Column(
@@ -407,7 +623,7 @@ class _DmChatScreenState extends State<DmChatScreen> {
                 }
 
                 if (messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -429,100 +645,108 @@ class _DmChatScreenState extends State<DmChatScreen> {
                   );
                 }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe =
-                        message.senderId == currentUserId;
-                    final showAvatar =
-                        index == messages.length - 1 ||
-                            messages[index + 1].senderId !=
-                                message.senderId;
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    reverse: true,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final isMe =
+                          message.senderId == currentUserId;
+                      final showAvatar =
+                          index == messages.length - 1 ||
+                              messages[index + 1].senderId !=
+                                  message.senderId;
 
-                    return MessageBubble(
-                      message: message,
-                      isMe: isMe,
-                      showAvatar: showAvatar,
-                      onLongPress: isMe && !message.isDeleted
-                          ? () => _showMessageOptions(message)
-                          : null,
-                    );
-                  },
+                      return MessageBubble(
+                        message: message,
+                        isMe: isMe,
+                        showAvatar: showAvatar,
+                        onLongPress: !message.isDeleted
+                            ? () => _showMessageOptions(message, isMe)
+                            : null,
+                      );
+                    },
+                  ),
                 );
               },
             ),
           ),
           // Message input
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Container(
+          // Message input
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final barBg = isDark ? const Color(0xFF000000) : AppTheme.surface;
+              final inputBg = isDark ? const Color(0xFF1C1C1E) : AppTheme.surfaceLight;
+              final borderCol = isDark ? const Color(0xFF262626) : AppTheme.border;
+              final textCol = isDark ? Colors.white : AppTheme.textPrimary;
+              final hintCol = isDark ? const Color(0xFFA8A8A8) : AppTheme.textSecondary;
+
+              return Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 decoration: BoxDecoration(
-                  color: AppTheme.surface.withValues(alpha: 0.65),
-                  border: const Border(
-                    top: BorderSide(
-                        color: AppTheme.border, width: 0.5),
+                  color: barBg,
+                  border: Border(
+                    top: BorderSide(color: borderCol, width: 0.8),
                   ),
                 ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceLight,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                            color:
-                                AppTheme.border.withValues(alpha: 0.5)),
-                      ),
-                      child: TextField(
-                        controller: _messageController,
-                        style: const TextStyle(
-                            color: AppTheme.textPrimary),
-                        maxLines: 4,
-                        minLines: 1,
-                        decoration: const InputDecoration(
-                          hintText: 'Mesaj yaz...',
-                          hintStyle: TextStyle(
-                              color: AppTheme.textSecondary),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                child: SafeArea(
+                  top: false,
+                  bottom: true,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: borderCol.withValues(alpha: 0.6)),
+                          ),
+                          child: TextField(
+                            controller: _messageController,
+                            style: TextStyle(color: textCol),
+                            maxLines: 4,
+                            minLines: 1,
+                            decoration: InputDecoration(
+                              hintText: 'Mesaj yaz...',
+                              hintStyle: TextStyle(color: hintCol),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                          ),
                         ),
-                        onSubmitted: (_) => _sendMessage(),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceLight,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.border.withValues(alpha: 0.5)),
-                    ),
-                    child: IconButton(
-                      icon: _isTranslatingInput
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppTheme.primary,
-                              ),
-                            )
-                          : const Icon(Icons.g_translate_rounded, color: AppTheme.primary, size: 20),
-                      onPressed: _isTranslatingInput ? null : _showLanguagePickerAndTranslate,
-                      tooltip: 'Çevir',
-                    ),
-                  ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: inputBg,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: borderCol.withValues(alpha: 0.6)),
+                        ),
+                        child: IconButton(
+                          icon: _isTranslatingInput
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppTheme.primary,
+                                  ),
+                                )
+                              : const Icon(Icons.g_translate_rounded, color: AppTheme.primary, size: 20),
+                          onPressed: _isTranslatingInput ? null : _showLanguagePickerAndTranslate,
+                          tooltip: 'Çevir',
+                        ),
+                      ),
                   const SizedBox(width: 8),
                   Container(
                     decoration: BoxDecoration(
@@ -546,13 +770,13 @@ class _DmChatScreenState extends State<DmChatScreen> {
                 ],
               ),
             ),
-          ),
-            ),
-          ),
-        ],
+          );
+        },
       ),
-      ),
-    );
+    ],
+  ),
+),
+);
   }
 }
 

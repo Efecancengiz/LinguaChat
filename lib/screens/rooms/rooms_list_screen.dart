@@ -18,6 +18,7 @@ class RoomsListScreen extends StatefulWidget {
 class _RoomsListScreenState extends State<RoomsListScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   static bool _roomsInitialized = false;
+  final Set<String> _syncedRooms = {};
 
   List<String> get _levels => [
     'Başlangıç (A1-A2)',
@@ -52,7 +53,7 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 4,
-                    childAspectRatio: 0.65,
+                    childAspectRatio: 0.58,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                   ),
@@ -66,26 +67,46 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
           );
         }
 
+        if (snapshot.hasError) {
+          debugPrint('RoomsListScreen rooms stream error: ${snapshot.error}');
+        }
+
         final rooms = snapshot.data ?? [];
+
+        // Background sync for rooms with stale/active member counts
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            for (final room in rooms) {
+              if (room.memberCount > 0 && !_syncedRooms.contains(room.id)) {
+                _syncedRooms.add(room.id);
+                _firestoreService.syncRoomMembersCount(room.id);
+              }
+            }
+          }
+        });
         
-        // Seçilen seviyeye göre filtreleme (Özel odaları gizle)
-        final filteredRooms = rooms.where((room) {
-          if (room.isCustom) return false;
-          return room.level == _selectedLevel;
-        }).toList();
+        // Map of actual rooms fetched from Firestore
+        final Map<String, RoomModel> firestoreRoomsMap = {
+          for (var room in rooms) room.id : room
+        };
 
-        // Eğer veritabanı boşsa (örneğin offline durum) veya yüklenememişse, o anki filtrenin varsayılan odaları üretilsin
-        final defaultRooms = AppConstants.languageRooms.map((room) {
-          return {
-            'code': '${room['code']}_$_selectedLevel',
-            'name': room['name'],
-            'flag': room['flag'],
-            'color': room['color'],
-          };
+        // Create the list of all language rooms for the selected level, merging stream data if available
+        final levelRooms = AppConstants.languageRooms.map((room) {
+          final docId = '${room['code']}_$_selectedLevel';
+          final firestoreRoom = firestoreRoomsMap[docId];
+          
+          return RoomModel(
+            id: docId,
+            name: firestoreRoom?.name ?? '${room['name']} Room',
+            languageCode: room['code'] as String,
+            flagEmoji: firestoreRoom?.flagEmoji ?? room['flag'] as String,
+            description: firestoreRoom?.description ?? '${room['name']} dilinde $_selectedLevel sohbet odası',
+            memberCount: firestoreRoom?.memberCount ?? 0,
+            level: _selectedLevel,
+            lastMessage: firestoreRoom?.lastMessage,
+            isCustom: false,
+          );
         }).toList();
-
-        final hasRooms = filteredRooms.isNotEmpty;
-        final count = hasRooms ? filteredRooms.length : defaultRooms.length;
 
         return CustomScrollView(
           slivers: [
@@ -95,31 +116,13 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
-                  childAspectRatio: 0.65,
+                  childAspectRatio: 0.58,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    if (!hasRooms) {
-                      final room = defaultRooms[index];
-                      return RoomCard(
-                        name: '${room['name']} Room',
-                        flagEmoji: room['flag'] as String,
-                        languageCode: room['code'] as String,
-                        memberCount: 0,
-                        accentColor: Color(room['color'] as int),
-                        onTap: () => context.push(
-                          '/room/${room['code']}',
-                          extra: {
-                            'name': '${room['name']} Room',
-                            'flag': room['flag'],
-                          },
-                        ),
-                      );
-                    }
-
-                    final room = filteredRooms[index];
+                    final room = levelRooms[index];
                     return RoomCard(
                       name: room.name,
                       flagEmoji: room.flagEmoji,
@@ -137,7 +140,7 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
                       ),
                     );
                   },
-                  childCount: count,
+                  childCount: levelRooms.length,
                 ),
               ),
             ),
@@ -172,6 +175,8 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
               itemBuilder: (context, index) {
                 final level = _levels[index];
                 final isSelected = _selectedLevel == level;
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+
                 return GestureDetector(
                   onTap: () => setState(() => _selectedLevel = level),
                   child: AnimatedContainer(
@@ -179,17 +184,23 @@ class _RoomsListScreenState extends State<RoomsListScreen> {
                     alignment: Alignment.center,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppTheme.primary : AppTheme.surfaceLight.withValues(alpha: 0.5),
+                      color: isSelected
+                          ? AppTheme.primary
+                          : (isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF1F5F9)),
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
-                        color: isSelected ? AppTheme.primary : AppTheme.border.withValues(alpha: 0.3),
+                        color: isSelected
+                            ? AppTheme.primary
+                            : (isDark ? const Color(0xFF333333) : const Color(0xFFE2E8F0)),
                         width: 1,
                       ),
                     ),
                     child: Text(
                       level,
                       style: TextStyle(
-                        color: isSelected ? Colors.white : AppTheme.textSecondary,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF475569)),
                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                         fontSize: 14,
                       ),

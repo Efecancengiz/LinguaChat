@@ -4,17 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
-import 'package:flutter/services.dart';
 import 'package:linguachat/widgets/user_avatar.dart';
 import 'package:linguachat/widgets/language_badge.dart';
-import 'package:linguachat/models/post_model.dart';
 import 'package:linguachat/models/user_model.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'dart:convert';
 import 'package:linguachat/services/storage_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:linguachat/services/firestore_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:math' as math;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -26,6 +26,20 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isUploading = false;
   final ImagePicker _picker = ImagePicker();
+  Stream<UserModel?>? _userStream;
+  String? _lastUserId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final authProvider = context.watch<AuthProvider>();
+    final currentUserId = authProvider.currentUserId;
+    
+    if (currentUserId != null && currentUserId != _lastUserId) {
+      _lastUserId = currentUserId;
+      _userStream = FirestoreService().userStream(currentUserId);
+    }
+  }
 
   @override
   void initState() {
@@ -33,7 +47,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = context.read<AuthProvider>();
       if (auth.user != null) {
-         await FirestoreService().syncFriendsToFollowers(auth.user!.uid);
+         final fs = FirestoreService();
+         await fs.syncFriendsToFollowers(auth.user!.uid);
+         await fs.syncUserFollowCounts(auth.user!.uid);
+         await fs.syncUserPostsCount(auth.user!.uid);
          if (mounted) auth.refreshUser(); // UI'ı anında güncelle
       }
     });
@@ -44,6 +61,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
       );
       if (image == null) return;
       
@@ -106,11 +126,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 width: MediaQuery.of(context).size.width - 80,
                                 height: MediaQuery.of(context).size.width - 80,
                               )
-                            : Image.network(
-                                photoUrl,
+                            : CachedNetworkImage(
+                                imageUrl: photoUrl,
                                 fit: BoxFit.cover,
                                 width: MediaQuery.of(context).size.width - 80,
                                 height: MediaQuery.of(context).size.width - 80,
+                                placeholder: (context, url) => Container(
+                                  width: MediaQuery.of(context).size.width - 80,
+                                  height: MediaQuery.of(context).size.width - 80,
+                                  color: AppTheme.surfaceLight,
+                                  child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+                                ),
+                                errorWidget: (context, url, error) => const Icon(Icons.error_outline, color: Colors.white),
                               ),
                       ),
                     ),
@@ -134,13 +161,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = context.read<AuthProvider>().currentUserId;
+    final authProvider = context.watch<AuthProvider>();
+
+    // AuthProvider yüklendikten sonra ana ekranı oluştur
+
+    final currentUserId = authProvider.currentUserId;
     if (currentUserId == null) {
-       return const Center(child: Text("Oturum açılmadı"));
+      return Center(
+        child: Text('Oturum açılmadı', style: TextStyle(color: AppTheme.textSecondary)),
+      );
     }
-    
+
     return StreamBuilder<UserModel?>(
-      stream: FirestoreService().userStream(currentUserId),
+      stream: _userStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
            return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
@@ -148,15 +181,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         final user = snapshot.data;
         if (user == null) {
-          return const Center(
+          return Center(
             child: Text('Profil yüklenemedi', style: TextStyle(color: AppTheme.textSecondary)),
           );
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 120, 24, 120),
-          child: Column(
-            children: [
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 120),
+            child: Column(
+              children: [
               // Top actions row
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -193,9 +227,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          title: const Text('Çıkış Yap',
+                          title: Text('Çıkış Yap',
                               style: TextStyle(color: AppTheme.textPrimary)),
-                          content: const Text(
+                          content: Text(
                             'Çıkış yapmak istediğinize emin misiniz?',
                             style: TextStyle(color: AppTheme.textSecondary),
                           ),
@@ -262,7 +296,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     user.displayName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary,
@@ -294,11 +328,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.location_city_rounded, size: 14, color: AppTheme.textSecondary),
+                    Icon(Icons.location_city_rounded, size: 14, color: AppTheme.textSecondary),
                     const SizedBox(width: 4),
                     Text(
                       user.city,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 14,
                       ),
@@ -310,7 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 12),
                 Text(
                   user.bio,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textSecondary,
                     fontSize: 14,
                   ),
@@ -325,7 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildStat('${user.postsCount}', 'Gönderi', onTap: () => context.push('/user-posts/${user.uid}')),
+                    _buildStat('${math.max(0, user.postsCount)}', 'Gönderi', onTap: () => context.push('/user-posts/${user.uid}')),
                     Container(width: 1, height: 40, color: AppTheme.border),
                     _buildStat('${user.followersCount}', 'Takipçi', onTap: () => context.push('/follows/${user.uid}/followers')),
                     Container(width: 1, height: 40, color: AppTheme.border),
@@ -336,7 +370,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 16),
               // Learning languages
               if (user.learningLanguages.isNotEmpty) ...[
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Öğreniyor',
@@ -363,7 +397,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
               // Known languages
               if (user.knownLanguages.isNotEmpty) ...[
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Bildiği Diller',
@@ -389,7 +423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
               // Interests
               if (user.interests.isNotEmpty) ...[
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'İlgi Alanları',
@@ -439,6 +473,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
 
               // Menu items
+              if (user.isAdmin) ...[
+                _buildMenuItem(
+                  icon: Icons.admin_panel_settings_rounded,
+                  title: 'Yönetici Paneli',
+                  subtitle: 'Şikayetleri ve kullanıcıları yönet',
+                  onTap: () => context.push('/admin'),
+                ),
+              ],
               _buildMenuItem(
                 icon: Icons.bookmark_border_rounded,
                 title: 'Kaydedilenler',
@@ -460,8 +502,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildMenuItem(
                 icon: Icons.info_outline_rounded,
                 title: 'Hakkında',
-                subtitle: 'LinguaChat v1.0.0',
+                subtitle: 'WorldPals v1.1.0',
                 onTap: () {},
+              ),
+              _buildMenuItem(
+                icon: Icons.block_rounded,
+                title: 'Engellenen Kişiler',
+                subtitle: 'Engellediğin kullanıcıları yönet',
+                onTap: () => context.push('/blocked-users'),
               ),
               _buildMenuItem(
                 icon: Icons.settings_outlined,
@@ -469,7 +517,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: 'Hesap ve gizlilik ayarları',
                 onTap: () => _showSettingsModal(context),
               ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -498,7 +547,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Ayarlar',
                 style: TextStyle(
                   fontSize: 20,
@@ -509,13 +558,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
               ListTile(
                 leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
-                title: const Text('Gizlilik Politikası', style: TextStyle(color: AppTheme.textPrimary)),
+                title: Text('Gizlilik Politikası', style: TextStyle(color: AppTheme.textPrimary)),
                 onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(context);
                   final Uri url = Uri.parse('https://linguachat-550b1.web.app/privacy.html');
                   if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(content: Text('Bağlantı açılamadı')),
                       );
                     }
@@ -546,8 +596,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Text('Hesabı Sil', style: TextStyle(color: AppTheme.textPrimary)),
-        content: const Text(
+        title: Text('Hesabı Sil', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text(
           'Hesabınızı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
           style: TextStyle(color: AppTheme.textSecondary),
         ),
@@ -559,12 +609,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () async {
                Navigator.pop(ctx);
+               
+               // Geçici yükleniyor penceresi göster
+               showDialog(
+                 context: context,
+                 barrierDismissible: false,
+                 builder: (loadingCtx) => const Center(
+                   child: CircularProgressIndicator(color: AppTheme.primary),
+                 ),
+               );
+
                final authProvider = context.read<AuthProvider>();
+               final messenger = ScaffoldMessenger.of(context);
                final success = await authProvider.deleteAccount();
-               if (success && mounted) {
-                 context.go('/login');
-               } else if (mounted) {
-                 ScaffoldMessenger.of(context).showSnackBar(
+               
+               // Yükleniyor penceresini kapat
+               if (context.mounted) {
+                 Navigator.pop(context);
+               }
+
+               if (!success) {
+                 messenger.showSnackBar(
                    SnackBar(
                      content: Text(authProvider.error ?? 'Hesap silinirken hata oluştu'),
                      backgroundColor: AppTheme.danger,
@@ -596,7 +661,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 12,
             ),
@@ -641,14 +706,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppTheme.textPrimary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 12,
                       ),
@@ -656,7 +721,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.arrow_forward_ios_rounded,
                 color: AppTheme.textSecondary,
                 size: 16,

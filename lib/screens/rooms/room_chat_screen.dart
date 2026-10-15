@@ -1,5 +1,6 @@
 // lib/screens/rooms/room_chat_screen.dart
 import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +13,7 @@ import 'package:linguachat/services/firestore_service.dart';
 import 'package:linguachat/services/translation_service.dart';
 import 'package:flutter/services.dart';
 import 'package:linguachat/widgets/message_bubble.dart';
+import 'package:linguachat/widgets/flag_sphere.dart';
 
 class RoomChatScreen extends StatefulWidget {
   final String roomId;
@@ -42,6 +44,40 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isTranslatingInput = false;
   final Set<String> _invitedUserIds = {};
+  Timer? _presenceTimer;
+  String? _currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUserId = context.read<AuthProvider>().currentUserId;
+    _joinRoom();
+    _startPresenceHeartbeat();
+  }
+
+  void _startPresenceHeartbeat() {
+    _presenceTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (_currentUserId != null) {
+        _firestoreService.updateRoomPresence(widget.roomId, _currentUserId!);
+      }
+    });
+  }
+
+  Future<void> _joinRoom() async {
+    if (_currentUserId == null) return;
+    try {
+      await _firestoreService.joinRoom(widget.roomId, _currentUserId!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Oda mevcudu güncellenemedi: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _translateInput() async {
     final text = _messageController.text.trim();
@@ -61,10 +97,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       }
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Çeviri yapılamadı.'),
             backgroundColor: AppTheme.danger,
+            duration: Duration(seconds: 1),
           ),
         );
       }
@@ -73,12 +111,17 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     }
   }
 
-  void _showMessageOptions(MessageModel message) {
-    if (DateTime.now().difference(message.timestamp).inMinutes > 10) {
+  void _showMessageOptions(MessageModel message, bool isMe) {
+    final currentUser = context.read<AuthProvider>().user;
+    final isAdmin = currentUser?.isAdmin == true;
+
+    if (isMe && !isAdmin && DateTime.now().difference(message.timestamp).inMinutes > 10) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Sadece ilk 10 dakika içindeki mesajları düzenleyebilir veya silebilirsiniz.'),
           backgroundColor: AppTheme.danger.withValues(alpha: 0.8),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
@@ -95,26 +138,157 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.edit_rounded, color: AppTheme.primary),
-                title: const Text('Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showEditMessageDialog(message);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_rounded, color: AppTheme.danger),
-                title: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showDeleteConfirmDialog(message);
-                },
-              ),
+              if (isMe) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit_rounded, color: AppTheme.primary),
+                  title: Text('Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showEditMessageDialog(message);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_rounded, color: AppTheme.danger),
+                  title: const Text('Sil', style: TextStyle(color: AppTheme.danger)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showDeleteConfirmDialog(message);
+                  },
+                ),
+              ] else ...[
+                if (isAdmin) ...[
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever_rounded, color: AppTheme.danger),
+                    title: const Text('Yönetici Olarak Sil 🗑️', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.bold)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (c) => AlertDialog(
+                          backgroundColor: AppTheme.surface,
+                          title: Text('Yönetici Olarak Sil', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                          content: Text('Bu mesajı yönetici yetkisiyle odadan kalıcı olarak silmek istediğinizden emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c, false),
+                              child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+                              onPressed: () => Navigator.pop(c, true),
+                              child: const Text('Sil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        try {
+                          await _firestoreService.adminDeleteRoomMessage(widget.roomId, message.id);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Mesaj yönetici tarafından silindi! ✅')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Mesaj silinirken hata oluştu: $e')),
+                            );
+                          }
+                        }
+                      }
+                    },
+                  ),
+                ],
+                ListTile(
+                  leading: const Icon(Icons.flag_rounded, color: AppTheme.danger),
+                  title: const Text('Mesajı Şikayet Et', style: TextStyle(color: AppTheme.danger)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showReportMessageDialog(message);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.block_rounded, color: AppTheme.danger),
+                  title: const Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.danger)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showBlockUserDialog(message.senderId);
+                  },
+                ),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+
+  void _showReportMessageDialog(MessageModel message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLight,
+        title: Text('Mesajı Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu mesajı sakıncalı içerik olarak bildirmek istiyor musunuz? Geri bildiriminiz için teşekkür ederiz.', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final currentUserId = context.read<AuthProvider>().currentUserId;
+              if (currentUserId != null) {
+                await _firestoreService.reportMessage(message.id, currentUserId, message.text);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Mesaj şikayet edildi. İncelenmek üzere iletildi.'), backgroundColor: AppTheme.primary),
+                  );
+                }
+              }
+            },
+            child: const Text('Şikayet Et', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBlockUserDialog(String userId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLight,
+        title: Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacaksınız.', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final currentUserId = context.read<AuthProvider>().currentUserId;
+              if (currentUserId != null) {
+                await _firestoreService.blockUser(currentUserId, userId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Kullanıcı engellendi.'), backgroundColor: AppTheme.primary),
+                  );
+                  context.pop(); // Go back since blocked
+                }
+              }
+            },
+            child: const Text('Engelle', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -124,15 +298,15 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceLight,
-        title: const Text('Mesajı Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('Mesajı Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
         content: TextField(
           controller: editController,
-          style: const TextStyle(color: AppTheme.textPrimary),
+          style: TextStyle(color: AppTheme.textPrimary),
           maxLines: 3,
           minLines: 1,
           decoration: InputDecoration(
             hintText: 'Mesajınız...',
-            hintStyle: const TextStyle(color: AppTheme.textSecondary),
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
             filled: true,
             fillColor: AppTheme.surface,
             border: OutlineInputBorder(
@@ -144,7 +318,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
@@ -167,15 +341,15 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceLight,
-        title: const Text('Mesajı Sil', style: TextStyle(color: AppTheme.textPrimary)),
-        content: const Text(
+        title: Text('Mesajı Sil', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text(
           'Bu mesajı silmek istediğinize emin misiniz? (Odadan silinecektir)',
           style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
@@ -211,10 +385,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       await _firestoreService.sendRoomMessage(widget.roomId, message);
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Mesaj gönderilemedi. Lütfen bağlantınızı kontrol edin.'),
             backgroundColor: AppTheme.danger,
+            duration: Duration(seconds: 1),
           ),
         );
       }
@@ -234,14 +410,14 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
           return Container(
             height: MediaQuery.of(context).size.height * 0.7,
             padding: const EdgeInsets.all(24),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppTheme.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
+                Text(
                   'Arkadaşlarını Davet Et',
                   style: TextStyle(
                     fontSize: 20,
@@ -261,7 +437,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
                       final friends = snapshot.data ?? [];
                       if (friends.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Text(
                             'Henüz hiç arkadaşın yok.',
                             style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
@@ -290,7 +466,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                             ),
                             title: Text(
                               friendName,
-                              style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
                             ),
                             trailing: ElevatedButton(
                               onPressed: isInvited
@@ -321,17 +497,24 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                                         setSheetState(() => _invitedUserIds.add(friendId));
                                         
                                         if (context.mounted) {
+                                          ScaffoldMessenger.of(context).clearSnackBars();
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
                                               content: Text('$friendName adlı kişiye davet gönderildi!'),
                                               backgroundColor: AppTheme.primary,
+                                              duration: const Duration(seconds: 1),
                                             ),
                                           );
                                         }
                                       } catch (e) {
                                         if (context.mounted) {
+                                          ScaffoldMessenger.of(context).clearSnackBars();
                                           ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Davet gönderilirken hata oluştu.')),
+                                            const SnackBar(
+                                              content: Text('Davet gönderilirken hata oluştu.'),
+                                              backgroundColor: AppTheme.danger,
+                                              duration: Duration(seconds: 1),
+                                            ),
                                           );
                                         }
                                       }
@@ -361,6 +544,10 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   @override
   void dispose() {
+    _presenceTimer?.cancel();
+    if (_currentUserId != null) {
+      _firestoreService.leaveRoom(widget.roomId, _currentUserId!);
+    }
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -372,6 +559,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     final accentColor = AppConstants.getColorFromCode(widget.roomId);
 
     return Scaffold(
+      backgroundColor: AppTheme.background,
       extendBodyBehindAppBar: true,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -379,24 +567,19 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: AppBar(
-              backgroundColor: AppTheme.background.withValues(alpha: 0.65),
+              backgroundColor: AppTheme.isDark ? Colors.black.withValues(alpha: 0.8) : AppTheme.background.withValues(alpha: 0.85),
               elevation: 0,
               leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => context.pop(),
+              ),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                widget.roomFlag,
-                style: const TextStyle(fontSize: 20),
-              ),
+            FlagSphere(
+              languageCode: widget.languageCode,
+              flagEmoji: widget.roomFlag,
+              size: 38,
+              glowColor: accentColor,
             ),
             const SizedBox(width: 12),
             Column(
@@ -405,7 +588,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
               children: [
                 Text(
                   widget.roomName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.textPrimary,
@@ -441,10 +624,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
               ),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: widget.roomCode!));
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Oda kodu kopyalandı: ${widget.roomCode!}'),
                     backgroundColor: AppTheme.primary,
+                    duration: const Duration(seconds: 1),
                   ),
                 );
               },
@@ -484,6 +669,44 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                 icon: const Icon(Icons.headset_mic_rounded, size: 16),
                 label: const Text('Sesli Katıl', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 onPressed: () {
+                  final user = context.read<AuthProvider>().user;
+                  if (user == null) return;
+                  
+                  bool hasBonus = false;
+                  final now = DateTime.now();
+                  if (user.lastSpinDate != null && 
+                      user.lastSpinDate!.year == now.year && 
+                      user.lastSpinDate!.month == now.month && 
+                      user.lastSpinDate!.day == now.day && 
+                      user.bonusMinutes > 0) {
+                    hasBonus = true;
+                  }
+                  
+                  if (!user.isPremium && !hasBonus) {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppTheme.surface,
+                        title: const Text('Premium Özel', style: TextStyle(color: Colors.white)),
+                        content: Text('Sesli sohbet sadece Premium kullanıcılara veya Şans Çarkından dakika kazananlara özeldir. Lütfen Premium\'a geçin veya Şans Çarkını çevirin.', style: TextStyle(color: AppTheme.textSecondary)),
+                        actions: [
+                          TextButton(
+                            onPressed: () { 
+                              Navigator.pop(ctx); 
+                              context.push('/premium'); 
+                            },
+                            child: const Text('Premium Al', style: TextStyle(color: AppTheme.primary)),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('İptal', style: TextStyle(color: Colors.grey)),
+                          ),
+                        ],
+                      )
+                    );
+                    return;
+                  }
+
                   context.push(
                     '/voice-room/${widget.roomId}',
                     extra: {'name': widget.roomName},
@@ -498,7 +721,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
           ),
         ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: AppTheme.surfaceGradient,
         ),
         child: Column(
@@ -521,12 +744,14 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          widget.roomFlag,
-                          style: const TextStyle(fontSize: 64),
+                        FlagSphere(
+                          languageCode: widget.languageCode,
+                          flagEmoji: widget.roomFlag,
+                          size: 72,
+                          glowColor: accentColor,
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Henüz mesaj yok',
                           style: TextStyle(
                             color: AppTheme.textSecondary,
@@ -535,7 +760,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           'İlk mesajı sen gönder! 🎯',
                           style: TextStyle(
                             color: AppTheme.textSecondary,
@@ -547,99 +772,108 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                   );
                 }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == currentUserId;
-                    final showAvatar = index == messages.length - 1 ||
-                        messages[index + 1].senderId != message.senderId;
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    reverse: true,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final isMe = message.senderId == currentUserId;
+                      final showAvatar = index == messages.length - 1 ||
+                          messages[index + 1].senderId != message.senderId;
 
-                    return MessageBubble(
-                      message: message,
-                      isMe: isMe,
-                      showAvatar: showAvatar,
-                      onLongPress: isMe && !message.isDeleted
-                          ? () => _showMessageOptions(message)
-                          : null,
-                      onAvatarTap: isMe
-                          ? null
-                          : () =>
-                              context.push('/user/${message.senderId}'),
-                    );
-                  },
+                      return MessageBubble(
+                        message: message,
+                        isMe: isMe,
+                        showAvatar: showAvatar,
+                        onLongPress: !message.isDeleted
+                            ? () => _showMessageOptions(message, isMe)
+                            : null,
+                        onAvatarTap: isMe
+                            ? null
+                            : () =>
+                                context.push('/user/${message.senderId}'),
+                      );
+                    },
+                  ),
                 );
               },
             ),
           ),
           // Message input
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Container(
+          Builder(
+            builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final barBg = isDark ? const Color(0xFF000000) : AppTheme.surface;
+              final inputBg = isDark ? const Color(0xFF1C1C1E) : AppTheme.surfaceLight;
+              final borderCol = isDark ? const Color(0xFF262626) : AppTheme.border;
+              final textCol = isDark ? Colors.white : AppTheme.textPrimary;
+              final hintCol = isDark ? const Color(0xFFA8A8A8) : AppTheme.textSecondary;
+
+              return Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 decoration: BoxDecoration(
-                  color: AppTheme.surface.withValues(alpha: 0.65),
-                  border: const Border(
-                    top: BorderSide(color: AppTheme.border, width: 0.5),
+                  color: barBg,
+                  border: Border(
+                    top: BorderSide(color: borderCol, width: 0.8),
                   ),
                 ),
                 child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceLight,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                            color: AppTheme.border.withValues(alpha: 0.5)),
-                      ),
-                      child: TextField(
-                        controller: _messageController,
-                        style:
-                            const TextStyle(color: AppTheme.textPrimary),
-                        maxLines: 4,
-                        minLines: 1,
-                        decoration: const InputDecoration(
-                          hintText: 'Mesaj yaz...',
-                          hintStyle:
-                              TextStyle(color: AppTheme.textSecondary),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                  top: false,
+                  bottom: true,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: borderCol.withValues(alpha: 0.6)),
+                          ),
+                          child: TextField(
+                            controller: _messageController,
+                            style: TextStyle(color: textCol),
+                            maxLines: 4,
+                            minLines: 1,
+                            decoration: InputDecoration(
+                              hintText: 'Mesaj yaz...',
+                              hintStyle: TextStyle(color: hintCol),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                          ),
                         ),
-                        onSubmitted: (_) => _sendMessage(),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceLight,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.border.withValues(alpha: 0.5)),
-                    ),
-                    child: IconButton(
-                      icon: _isTranslatingInput
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppTheme.primary,
-                              ),
-                            )
-                          : const Icon(Icons.g_translate_rounded, color: AppTheme.primary, size: 20),
-                      onPressed: _isTranslatingInput ? null : _translateInput,
-                      tooltip: 'Odanın diline çevir',
-                    ),
-                  ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: inputBg,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: borderCol.withValues(alpha: 0.6)),
+                        ),
+                        child: IconButton(
+                          icon: _isTranslatingInput
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppTheme.primary,
+                                  ),
+                                )
+                              : const Icon(Icons.g_translate_rounded, color: AppTheme.primary, size: 20),
+                          onPressed: _isTranslatingInput ? null : _translateInput,
+                          tooltip: 'Odanın diline çevir',
+                        ),
+                      ),
                   const SizedBox(width: 8),
                   Container(
                     decoration: BoxDecoration(
@@ -662,12 +896,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                 ],
               ),
             ),
-          ),
-            ),
-          ),
-        ],
+          );
+        },
       ),
-      ),
-    );
+    ],
+  ),
+),
+);
   }
 }

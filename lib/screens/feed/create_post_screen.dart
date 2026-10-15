@@ -27,6 +27,47 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   /// 'everyone' veya 'friends'
   String _audience = 'everyone';
+  String? _location;
+
+  void _showLocationInputDialog() {
+    final controller = TextEditingController(text: _location);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Konum Ekle', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+        content: TextField(
+          controller: controller,
+          style: TextStyle(color: AppTheme.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Konum girin (örn. İstanbul, Türkiye)',
+            hintStyle: TextStyle(color: AppTheme.textSecondary),
+            prefixIcon: Icon(Icons.location_on_rounded, color: AppTheme.primary),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.border)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.primary)),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              setState(() {
+                _location = text.isEmpty ? null : text;
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('Kaydet', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -38,8 +79,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        // imageQuality ve maxWidth parametreleri iOS'ta re-encoding bug'ına (0 byte dosya veya crash)
-        // yol açabildiği için kaldırıldı. Orijinal dosyayı değiştirmeden alır.
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
       );
       if (picked != null) {
         setState(() => _selectedImage = picked);
@@ -76,7 +118,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
                 alignment: Alignment.center,
               ),
-              const Text('Fotoğraf Ekle', style: TextStyle(
+              Text('Fotoğraf Ekle', style: TextStyle(
                 color: AppTheme.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -191,6 +233,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         content: content,
         imageUrl: imageUrl,
         audience: _audience,
+        location: _location,
       );
 
       final firestoreService = FirestoreService();
@@ -233,10 +276,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         backgroundColor: AppTheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: AppTheme.textPrimary),
+          icon: Icon(Icons.close_rounded, color: AppTheme.textPrimary),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Yeni Gönderi',
+        title: Text('Yeni Gönderi',
             style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
         actions: [
           Padding(
@@ -266,7 +309,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.surfaceGradient),
+        decoration: BoxDecoration(gradient: AppTheme.surfaceGradient),
         child: Column(
           children: [
             if (_isPosting && _selectedImage != null)
@@ -296,7 +339,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         Expanded(
                           child: TextField(
                             controller: _contentController,
-                            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17, height: 1.5),
+                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 17, height: 1.5),
                             maxLines: null,
                             autofocus: _selectedImage == null,
                             decoration: InputDecoration(
@@ -320,6 +363,49 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       selected: _audience,
                       onChanged: (val) => setState(() => _audience = val),
                     ),
+
+                    if (_location != null && _location!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppTheme.primary.withValues(alpha: 0.3),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_on_rounded, color: AppTheme.primary, size: 14),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                _location!,
+                                style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () => setState(() => _location = null),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: AppTheme.primary.withValues(alpha: 0.7),
+                                size: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     // ── Seçili görsel ───────────────────────────────────
                     if (_selectedImage != null) ...[
@@ -362,7 +448,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
               decoration: BoxDecoration(
                 color: AppTheme.surface.withValues(alpha: 0.95),
-                border: const Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
+                border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
               ),
               child: SafeArea(
                 top: false,
@@ -377,6 +463,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       icon: Icons.camera_alt_rounded,
                       label: 'Kamera',
                       onTap: () => _pickImage(ImageSource.camera),
+                    ),
+                    _ToolbarButton(
+                      icon: Icons.location_on_rounded,
+                      label: 'Konum',
+                      onTap: _showLocationInputDialog,
                     ),
                   ],
                 ),
@@ -403,7 +494,7 @@ class _AudienceSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Kim görebilir?',
           style: TextStyle(
             color: AppTheme.textSecondary,

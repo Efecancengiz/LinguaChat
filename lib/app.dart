@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
+import 'package:linguachat/screens/splash/splash_screen.dart';
 import 'package:linguachat/screens/auth/login_screen.dart';
 import 'package:linguachat/screens/auth/register_screen.dart';
 import 'package:linguachat/screens/auth/forgot_password_screen.dart';
@@ -18,13 +19,16 @@ import 'package:linguachat/screens/friends/friends_list_screen.dart';
 import 'package:linguachat/screens/friends/friend_requests_screen.dart';
 import 'package:linguachat/screens/dm/dm_chat_screen.dart';
 import 'package:linguachat/screens/premium/premium_screen.dart';
+import 'package:linguachat/screens/premium/fortune_wheel_screen.dart';
 import 'package:linguachat/screens/rooms/voice_room_screen.dart';
 import 'package:linguachat/providers/voice_room_timer_provider.dart';
 import 'package:linguachat/screens/feed/create_post_screen.dart';
 import 'package:linguachat/services/admob_service.dart';
+import 'package:linguachat/screens/profile/blocked_users_screen.dart';
+import 'package:linguachat/screens/admin/admin_panel_screen.dart';
 
-class LinguaChatApp extends StatelessWidget {
-  const LinguaChatApp({super.key});
+class WorldPalsApp extends StatelessWidget {
+  const WorldPalsApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -33,21 +37,21 @@ class LinguaChatApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => VoiceRoomTimerProvider()),
       ],
-      child: const _LinguaChatRouter(),
+      child: const _WorldPalsRouter(),
     );
   }
 }
 
 /// GoRouter'ı Provider ağacının altında oluşturur
 /// böylece redirect callback'i AuthProvider'a erişebilir.
-class _LinguaChatRouter extends StatefulWidget {
-  const _LinguaChatRouter();
+class _WorldPalsRouter extends StatefulWidget {
+  const _WorldPalsRouter();
 
   @override
-  State<_LinguaChatRouter> createState() => _LinguaChatRouterState();
+  State<_WorldPalsRouter> createState() => _WorldPalsRouterState();
 }
 
-class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindingObserver {
+class _WorldPalsRouterState extends State<_WorldPalsRouter> with WidgetsBindingObserver {
   late final GoRouter _router;
 
   @override
@@ -57,13 +61,16 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
     final authProvider = context.read<AuthProvider>();
 
     _router = GoRouter(
-      initialLocation: '/login',
+      initialLocation: '/splash',
       refreshListenable: authProvider,
       redirect: (context, state) {
         final isAuthenticated = authProvider.isAuthenticated;
         final isAuthRoute = state.matchedLocation == '/login' ||
             state.matchedLocation == '/register' ||
             state.matchedLocation == '/forgot-password';
+        final isSplashRoute = state.matchedLocation == '/splash';
+
+        if (isSplashRoute) return null;
 
         if (!isAuthenticated && !isAuthRoute) {
           return '/login';
@@ -75,8 +82,16 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
       },
       routes: [
         GoRoute(
+          path: '/splash',
+          builder: (context, state) => const SplashScreen(),
+        ),
+        GoRoute(
           path: '/',
-          builder: (context, state) => const HomeScreen(),
+          builder: (context, state) {
+            final tabStr = state.uri.queryParameters['tab'];
+            final initialTab = tabStr != null ? int.tryParse(tabStr) ?? 0 : 0;
+            return HomeScreen(initialTab: initialTab);
+          },
         ),
         GoRoute(
           path: '/login',
@@ -166,6 +181,10 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
           builder: (context, state) => const PremiumScreen(),
         ),
         GoRoute(
+          path: '/fortune-wheel',
+          builder: (context, state) => const FortuneWheelScreen(),
+        ),
+        GoRoute(
           path: '/voice-room/:roomId',
           builder: (context, state) {
             final roomId = state.pathParameters['roomId']!;
@@ -179,6 +198,14 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
         GoRoute(
           path: '/create-post',
           builder: (context, state) => const CreatePostScreen(),
+        ),
+        GoRoute(
+          path: '/blocked-users',
+          builder: (context, state) => const BlockedUsersScreen(),
+        ),
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => const AdminPanelScreen(),
         ),
       ],
     );
@@ -204,9 +231,11 @@ class _LinguaChatRouterState extends State<_LinguaChatRouter> with WidgetsBindin
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'LinguaChat',
+      title: 'WorldPals',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
       routerConfig: _router,
     );
   }

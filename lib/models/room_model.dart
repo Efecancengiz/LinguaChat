@@ -36,7 +36,9 @@ class RoomModel {
       languageCode: data['languageCode'] ?? '',
       flagEmoji: data['flagEmoji'] ?? '',
       description: data['description'] ?? '',
-      memberCount: data['memberCount'] ?? 0,
+      memberCount: data['memberCount'] is num
+          ? ((data['memberCount'] as num).toInt() < 0 ? 0 : (data['memberCount'] as num).toInt())
+          : 0,
       level: data['level'] as String?,
       roomCode: data['roomCode'] as String?,
       lastMessage: data['lastMessage'] as Map<String, dynamic>?,

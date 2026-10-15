@@ -18,9 +18,10 @@ void main() async {
     // Status bar style
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF161B22),
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: Color(0xFFF8FAFC),
+      systemNavigationBarIconBrightness: Brightness.dark,
     ));
 
     // Initialize Firebase
@@ -41,6 +42,8 @@ void main() async {
     // RevenueCat (Ödeme) sistemini başlat
     await RevenueCatService.init();
 
+    // ATT izni Splash ekrana taşındı.
+
     // AdMob sistemini başlat
     await AdMobService.initialize();
     AdMobService.loadAppOpenAd();
@@ -50,7 +53,7 @@ void main() async {
     timeago.setDefaultLocale('tr');
     await initializeDateFormatting('tr', null);
 
-    runApp(const LinguaChatApp());
+    runApp(const WorldPalsApp());
   } catch (e) {
     debugPrint('STARTUP ERROR: $e');
     runApp(

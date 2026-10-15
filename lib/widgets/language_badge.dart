@@ -45,9 +45,9 @@ class LanguageBadge extends StatelessWidget {
         children: [
           Text(
             room['flag'] as String,
-            style: TextStyle(fontSize: compact ? 14 : 16),
+            style: TextStyle(fontSize: compact ? 18 : 22),
           ),
-          SizedBox(width: compact ? 4 : 6),
+          SizedBox(width: compact ? 6 : 8),
           if (!compact)
             Text(
               room['name'] as String,

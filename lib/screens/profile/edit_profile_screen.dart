@@ -58,12 +58,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = authProvider.user;
     if (user == null) return;
 
+    // Capture context-dependent objects before any async gaps
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+
+    final newDisplayName = _nameController.text.trim();
+    if (newDisplayName.isEmpty) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Kullanıcı adı boş olamaz.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
+
+    if (newDisplayName.length < 3) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Kullanıcı adı en az 3 karakter olmalıdır.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     debugPrint("Kaydet butonuna basıldı, _isSaving = true yapıldı.");
 
     try {
-      final newDisplayName = _nameController.text.trim();
-      
       if (user.displayName != newDisplayName) {
         try {
           await _firestoreService.updateUserDisplayName(
@@ -87,28 +110,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'interests': _interests,
       });
 
-      // 1. Önce başarı mesajını göster (Widget hala aktifken)
-      ScaffoldMessenger.of(context).showSnackBar(
+      // 1. Show success message using pre-captured messenger
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('Profil güncellendi! ✅')),
       );
 
-      // 2. Sayfayı kapat (GoRouter refresh yarışını engellemek için)
-      debugPrint("Geri dönme işlemi (pop/go) başlatılıyor...");
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.go('/');
-      }
+      // 2. Navigate back to the profile screen
+      debugPrint("Geri dönme işlemi (go) başlatılıyor...");
+      router.go('/?tab=4');
 
-      // 3. Arka planda user'ı yenile
+      // 3. Refresh user data in background after navigation transition
       debugPrint("Firestore güncellendi. Kullanıcı verisi arka planda yenileniyor...");
-      authProvider.refreshUser();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        authProvider.refreshUser();
+      });
 
     } catch (e) {
       debugPrint('Profil kaydetme hatası: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hata: $e')),
+      String errorMessage = e.toString();
+      if (errorMessage.startsWith('Exception: ')) {
+        errorMessage = errorMessage.substring('Exception: '.length);
+      }
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     } finally {
       debugPrint("İşlem sonu (finally). _isSaving = false yapılıyor.");
@@ -127,6 +155,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
       );
 
       if (image == null) return;
@@ -165,6 +196,96 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  Future<void> _deleteProfileImage() async {
+    final authProvider = context.read<AuthProvider>();
+    final user = authProvider.user;
+    if (user == null) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      setState(() => _isUploadingImage = true);
+      // Profil resmini kaldırmak için photoUrl'i boş dize yaparız.
+      await _firestoreService.updateUser(user.uid, {'photoUrl': ''}).timeout(const Duration(seconds: 10));
+      await authProvider.refreshUser();
+
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Profil fotoğrafı kaldırıldı! 🗑️'),
+            backgroundColor: AppTheme.accent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Hata: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
+  void _showPhotoOptionsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                alignment: Alignment.center,
+              ),
+              Text('Profil Fotoğrafını Değiştir', style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              )),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: AppTheme.primary),
+                title: Text('Kütüphaneden Seç', style: TextStyle(color: AppTheme.textPrimary)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadImage();
+                },
+              ),
+              Divider(color: AppTheme.border, height: 1),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger),
+                title: const Text('Profil Fotoğrafını Sil', style: TextStyle(color: AppTheme.danger)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _deleteProfileImage();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
   void _addKnownLanguage() {
     showModalBottomSheet(
       context: context,
@@ -179,7 +300,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Dil Ekle',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
@@ -198,11 +319,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         .any((l) => l['lang'] == lang['code']);
                     return ListTile(
                       leading: Text(lang['flag'] as String,
-                          style: const TextStyle(fontSize: 24)),
+                          style: const TextStyle(fontSize: 30)),
                       title: Text(
                         lang['name'] as String,
                         style:
-                            const TextStyle(color: AppTheme.textPrimary),
+                            TextStyle(color: AppTheme.textPrimary),
                       ),
                       trailing: alreadyAdded
                           ? const Icon(Icons.check_circle,
@@ -240,7 +361,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Seviye Seç',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
@@ -252,7 +373,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ...AppConstants.languageLevels.map((level) {
                 return ListTile(
                   title: Text(level,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppTheme.textPrimary)),
                   onTap: () {
                     setState(() {
@@ -286,7 +407,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Öğrenmek İstediğin Dil',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
@@ -305,10 +426,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         .any((l) => l['lang'] == lang['code']);
                     return ListTile(
                       leading: Text(lang['flag'] as String,
-                          style: const TextStyle(fontSize: 24)),
+                          style: const TextStyle(fontSize: 30)),
                       title: Text(
                         lang['name'] as String,
-                        style: const TextStyle(color: AppTheme.textPrimary),
+                        style: TextStyle(color: AppTheme.textPrimary),
                       ),
                       trailing: alreadyAdded
                           ? const Icon(Icons.check_circle, color: AppTheme.accent)
@@ -344,7 +465,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Hedef Seviye',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
@@ -356,7 +477,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ...AppConstants.languageLevels.map((level) {
                 return ListTile(
                   title: Text(level,
-                      style: const TextStyle(color: AppTheme.textPrimary)),
+                      style: TextStyle(color: AppTheme.textPrimary)),
                   onTap: () {
                     setState(() {
                       _learningLanguages.add({'lang': langCode, 'level': level});
@@ -377,6 +498,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = context.watch<AuthProvider>().user;
 
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
@@ -422,7 +544,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     bottom: 0,
                     right: 0,
                     child: GestureDetector(
-                      onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                      onTap: _isUploadingImage ? null : _showPhotoOptionsSheet,
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -440,7 +562,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 ),
                               )
                             : const Icon(
-                                Icons.camera_alt,
+                                Icons.edit_rounded,
                                 size: 16,
                                 color: Colors.white,
                               ),
@@ -452,13 +574,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 24),
             // Name
-            const Text('Kullanıcı Adı',
+            Text('Kullanıcı Adı',
                 style: TextStyle(
                     color: AppTheme.textSecondary, fontSize: 13)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _nameController,
-              style: const TextStyle(color: AppTheme.textPrimary),
+              style: TextStyle(color: AppTheme.textPrimary),
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.person_outline,
                     color: AppTheme.primary),
@@ -466,14 +588,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 20),
             // Bio
-            const Text('Biyografi',
+            Text('Biyografi',
                 style: TextStyle(
                     color: AppTheme.textSecondary, fontSize: 13)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _bioController,
               maxLines: 3,
-              style: const TextStyle(color: AppTheme.textPrimary),
+              style: TextStyle(color: AppTheme.textPrimary),
               decoration: const InputDecoration(
                 hintText: 'Kendinden bahset...',
                 prefixIcon: Icon(Icons.edit_note, color: AppTheme.primary),
@@ -481,12 +603,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 20),
             // City
-            const Text('Şehir',
+            Text('Şehir',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _cityController,
-              style: const TextStyle(color: AppTheme.textPrimary),
+              style: TextStyle(color: AppTheme.textPrimary),
               decoration: const InputDecoration(
                 hintText: 'Yaşadığın şehir...',
                 prefixIcon: Icon(Icons.location_city_rounded, color: AppTheme.primary),
@@ -497,7 +619,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Bildiğim Diller',
                   style: TextStyle(
                     color: AppTheme.textPrimary,
@@ -520,7 +642,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 8),
             if (_knownLanguages.isEmpty)
-              const Text(
+              Text(
                 'Henüz dil eklenmedi',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
@@ -529,16 +651,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               runSpacing: 8,
               children: _knownLanguages.map((lang) {
                 return Chip(
-                  label: Text(
-                    '${_getFlagForCode(lang['lang'] ?? '')} ${lang['level']}',
-                    style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getFlagForCode(lang['lang'] ?? ''),
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        lang['level'] ?? '',
+                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ],
                   ),
                   backgroundColor: AppTheme.surfaceLight,
                   deleteIconColor: AppTheme.danger,
                   onDeleted: () {
                     setState(() => _knownLanguages.remove(lang));
                   },
-                  side: const BorderSide(color: AppTheme.border),
+                  side: BorderSide(color: AppTheme.border),
                 );
               }).toList(),
             ),
@@ -547,7 +679,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Öğrenmek İstediğim Diller',
                   style: TextStyle(
                     color: AppTheme.textPrimary,
@@ -570,7 +702,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 8),
             if (_learningLanguages.isEmpty)
-              const Text(
+              Text(
                 'Öğrenmek istediğin dil yok',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
@@ -579,9 +711,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               runSpacing: 8,
               children: _learningLanguages.map((lang) {
                 return Chip(
-                  label: Text(
-                    '${_getFlagForCode(lang['lang'] ?? '')} ${lang['level']}',
-                    style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getFlagForCode(lang['lang'] ?? ''),
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        lang['level'] ?? '',
+                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ],
                   ),
                   backgroundColor: AppTheme.accent.withValues(alpha: 0.1),
                   deleteIconColor: AppTheme.danger,
@@ -593,7 +735,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               }).toList(),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'İlgi Alanları',
               style: TextStyle(
                 color: AppTheme.textPrimary,

@@ -42,7 +42,7 @@ class FriendsListScreen extends StatelessWidget {
       body: currentUserId == null
           ? const SizedBox.shrink()
           : Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: AppTheme.surfaceGradient,
               ),
               child: StreamBuilder<List<Map<String, dynamic>>>(
@@ -77,7 +77,7 @@ class FriendsListScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Henüz arkadaşın yok',
                           style: TextStyle(
                             color: AppTheme.textPrimary,
@@ -86,7 +86,7 @@ class FriendsListScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           'Dil odalarında yeni insanlarla tanış!',
                           style: TextStyle(
                             color: AppTheme.textSecondary,
@@ -211,7 +211,7 @@ class _FriendListTile extends StatelessWidget {
                         children: [
                           Text(
                             displayName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppTheme.textPrimary,
                               fontWeight: FontWeight.w600,
                               fontSize: 16,
@@ -236,15 +236,28 @@ class _FriendListTile extends StatelessWidget {
                         color: AppTheme.primary,
                         size: 20,
                       ),
-                      onPressed: () {
+                      onPressed: () async {
                         final chatId = firestoreService
                             .getDmChatId(currentUserId, friendId);
-                        firestoreService.createDmChat(
-                            currentUserId, friendId);
-                        context.push('/dm/$chatId',
-                            extra: {
-                              'userId': friendId,
-                            });
+                        try {
+                          await firestoreService.createDmChat(
+                              currentUserId, friendId);
+                          if (context.mounted) {
+                            context.push('/dm/$chatId',
+                                extra: {
+                                  'userId': friendId,
+                                });
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Sohbet başlatılamadı: $e'),
+                                backgroundColor: AppTheme.danger,
+                              ),
+                            );
+                          }
+                        }
                       },
                     ),
                   ],

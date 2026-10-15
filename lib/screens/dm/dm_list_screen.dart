@@ -71,7 +71,7 @@ class _DmListScreenState extends State<DmListScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Henüz mesajın yok',
                         style: TextStyle(
                           color: AppTheme.textPrimary,
@@ -80,7 +80,7 @@ class _DmListScreenState extends State<DmListScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Arkadaşlarınla sohbet etmeye başla!',
                         style: TextStyle(
                           color: AppTheme.textSecondary,
@@ -123,11 +123,27 @@ class _DmListScreenState extends State<DmListScreen> {
                       final otherUser = userSnapshot.data;
                       final displayName =
                           otherUser?.displayName ?? 'Kullanıcı';
-                      final photoUrl = otherUser?.photoUrl ?? '';
+                      final isDark = Theme.of(context).brightness == Brightness.dark;
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        decoration: AppTheme.glassDecoration,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF121212) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF262626) : const Color(0xFFE2E8F0),
+                            width: 0.8,
+                          ),
+                          boxShadow: isDark
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                        ),
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
@@ -141,7 +157,7 @@ class _DmListScreenState extends State<DmListScreen> {
                           child: Row(
                             children: [
                               UserAvatar(
-                                photoUrl: photoUrl,
+                                photoUrl: otherUser?.photoUrl,
                                 displayName: displayName,
                                 radius: 26,
                                 showOnlineIndicator: true,
@@ -200,7 +216,7 @@ class _DmListScreenState extends State<DmListScreen> {
                                   if (updatedAt != null)
                                     Text(
                                       timeago.format(updatedAt, locale: 'tr'),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: AppTheme.textSecondary,
                                         fontSize: 11,
                                       ),
@@ -211,11 +227,11 @@ class _DmListScreenState extends State<DmListScreen> {
                                     height: 24,
                                     child: PopupMenuButton<String>(
                                       padding: EdgeInsets.zero,
-                                      icon: const Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
+                                      icon: Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
                                       color: AppTheme.surfaceLight,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        side: const BorderSide(color: AppTheme.border, width: 0.5),
+                                        side: BorderSide(color: AppTheme.border, width: 0.5),
                                       ),
                                       onSelected: (value) async {
                                         if (value == 'delete') {
@@ -223,12 +239,12 @@ class _DmListScreenState extends State<DmListScreen> {
                                             context: context,
                                             builder: (ctx) => AlertDialog(
                                               backgroundColor: AppTheme.surfaceLight,
-                                              title: const Text('Sohbeti Sil', style: TextStyle(color: AppTheme.textPrimary)),
-                                              content: const Text('Bu sohbeti tamamen silmek istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                                              title: Text('Sohbeti Sil', style: TextStyle(color: AppTheme.textPrimary)),
+                                              content: Text('Bu sohbeti tamamen silmek istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
                                               actions: [
                                                 TextButton(
                                                   onPressed: () => Navigator.pop(ctx),
-                                                  child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                                                  child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
                                                 ),
                                                 TextButton(
                                                   onPressed: () async {

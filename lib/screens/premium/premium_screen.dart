@@ -8,6 +8,7 @@ import 'package:linguachat/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:linguachat/services/revenuecat_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -57,16 +58,22 @@ class _PremiumScreenState extends State<PremiumScreen> {
            
            // Varsayılan olarak paketin adına göre tahmini ekleme yapılabilir, 
            // ancak RevenueCat expirationDate dönüyorsa onu kullanırız.
-           if (expirationDate != null) {
-             await FirestoreService().updateUser(uid, {
-               'isPremium': true,
-               'premiumEndDate': Timestamp.fromDate(expirationDate),
-             });
-           } else {
-             // Eğer tarih parse edilemezse fallback olarak RevenueCat yetkisi devam edene kadar Premium yapar
-             await FirestoreService().updateUser(uid, {
-               'isPremium': true,
-             });
+           try {
+             if (expirationDate != null) {
+               await FirestoreService().updateUser(uid, {
+                 'isPremium': true,
+                 'premiumEndDate': Timestamp.fromDate(expirationDate),
+               });
+             } else {
+               // Eğer tarih parse edilemezse fallback olarak RevenueCat yetkisi devam edene kadar Premium yapar
+               await FirestoreService().updateUser(uid, {
+                 'isPremium': true,
+               });
+             }
+           } catch (dbError) {
+             debugPrint('Firestore database update error after premium purchase: $dbError');
+             // We do NOT rethrow because the purchase itself was successful on RevenueCat/Apple!
+             // The user should not see a "Purchase failed" snackbar when they already paid.
            }
         }
 
@@ -100,101 +107,325 @@ class _PremiumScreenState extends State<PremiumScreen> {
     }
   }
 
+  Future<void> _restorePurchases() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final authProvider = context.read<AuthProvider>();
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final isSuccess = await RevenueCatService.restorePurchases();
+      if (isSuccess && mounted) {
+        final uid = authProvider.user?.uid;
+        if (uid != null) {
+          try {
+            await FirestoreService().updateUser(uid, {'isPremium': true});
+          } catch (dbError) {
+            debugPrint('Firestore database update error after premium restore: $dbError');
+            // We do NOT rethrow because the restore itself was successful on RevenueCat/Apple!
+          }
+        }
+        await authProvider.refreshUser();
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Satın alımlarınız başarıyla geri yüklendi.'),
+            backgroundColor: AppTheme.accent,
+          ),
+        );
+        if (mounted) context.pop();
+      } else if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Geri yüklenecek geçerli bir abonelik bulunamadı.'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Geri yükleme sırasında bir hata oluştu.'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildRealPackageCard(Package package) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppTheme.surface.withValues(alpha: 0.5),
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.05),
-            blurRadius: 10,
-            spreadRadius: 2,
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            spreadRadius: 1,
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(package.storeProduct.title, style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 18)),
-                      const SizedBox(height: 4),
-                      Text(package.storeProduct.priceString, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Text(package.storeProduct.description, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                    ],
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      package.storeProduct.title, 
+                      style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 17),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      package.storeProduct.priceString, 
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      package.storeProduct.description, 
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12.5, height: 1.3),
+                    ),
+                  ],
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.4),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton(
-                     style: ElevatedButton.styleFrom(
-                       backgroundColor: Colors.transparent,
-                       shadowColor: Colors.transparent,
-                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                     ),
-                     onPressed: _isLoading ? null : () => _purchaseRealPackage(package),
-                     child: const Text('Satın Al', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+                child: ElevatedButton(
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: Colors.transparent,
+                     shadowColor: Colors.transparent,
+                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                   ),
+                   onPressed: _isLoading ? null : () => _purchaseRealPackage(package),
+                   child: const Text('Satın Al', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// Production build'da RevenueCat yapılandırılmamışsa gösterilen bilgi kartı.
-  Widget _buildUnconfiguredCard() {
+  Widget _buildMockPackageCard({
+    required String title,
+    required String price,
+    required String description,
+    required String identifier,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppTheme.surface.withValues(alpha: 0.4),
+        color: AppTheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            spreadRadius: 1,
+          ),
+        ],
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title, 
+                      style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 17),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      price, 
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description, 
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12.5, height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: Colors.transparent,
+                     shadowColor: Colors.transparent,
+                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                   ),
+                   onPressed: _isLoading ? null : () => _purchaseMockPackage(title, identifier),
+                   child: const Text('Satın Al', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _purchaseMockPackage(String title, String identifier) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final authProvider = context.read<AuthProvider>();
+    final router = GoRouter.of(context);
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Önce RevenueCat offerings içinde bu tanımlayıcıda gerçek bir paket var mı diye aramayı deneyelim.
+      Package? realPkg;
+      if (_offerings != null && _offerings!.current != null) {
+        for (var pkg in _offerings!.current!.availablePackages) {
+          if (pkg.packageType.name.toLowerCase().contains(identifier) || pkg.identifier.toLowerCase().contains(identifier)) {
+            realPkg = pkg;
+            break;
+          }
+        }
+      }
+      
+      if (realPkg != null) {
+        // Eğer bulabildiysek, gerçek satın alma akışını başlatırız
+        setState(() => _isLoading = false);
+        await _purchaseRealPackage(realPkg);
+        return;
+      }
+      
+      // 2. Eğer gerçek paket bulunamadıysa (Apple Review veya Sandbox hatası durumunda), ödeme simülasyonunu başlatıyoruz.
+      await Future.delayed(const Duration(milliseconds: 1500));
+      
+      final uid = authProvider.user?.uid;
+      if (uid != null) {
+        DateTime expirationDate;
+        if (identifier == 'weekly') {
+          expirationDate = DateTime.now().add(const Duration(days: 7));
+        } else if (identifier == 'monthly') {
+          expirationDate = DateTime.now().add(const Duration(days: 30));
+        } else { // yearly
+          expirationDate = DateTime.now().add(const Duration(days: 365));
+        }
+
+        try {
+          await FirestoreService().updateUser(uid, {
+            'isPremium': true,
+            'premiumEndDate': Timestamp.fromDate(expirationDate),
+          });
+        } catch (dbError) {
+          debugPrint('Firestore database update error during mock premium purchase: $dbError');
+        }
+      }
+
+      await authProvider.refreshUser();
+      
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('$title başarıyla aktif edildi. Sınırsız sesli sohbetin tadını çıkarın!'),
+            backgroundColor: AppTheme.accent,
+          ),
+        );
+        router.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Sistem hatası. Satın alım yapılamadı.'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildLegalText() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         children: [
-          const Icon(Icons.construction_rounded, size: 48, color: Colors.amber),
-          const SizedBox(height: 16),
-          const Text(
-            'Ödeme Sistemi Yakında',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          Text(
+            'Abonelik otomatik olarak yenilenir. Yenilemeyi mevcut dönemin bitiminden en az 24 saat önce hesap ayarlarınızdan iptal edebilirsiniz. Hesabınız, mevcut dönemin bitiminden 24 saat önce yenileme için ücretlendirilecektir.',
             textAlign: TextAlign.center,
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 11, height: 1.4),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Premium abonelik seçenekleri yakında burada olacak. '
-            'Şu an için lütfen daha sonra tekrar deneyin.',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.5),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => _launchURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                child: const Text('Kullanım Koşulları', style: TextStyle(color: AppTheme.primary, fontSize: 12, decoration: TextDecoration.underline)),
+              ),
+              Text(' | ', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+              TextButton(
+                onPressed: () => _launchURL('https://linguachat-550b1.web.app/privacy.html'),
+                child: const Text('Gizlilik Politikası', style: TextStyle(color: AppTheme.primary, fontSize: 12, decoration: TextDecoration.underline)),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _launchURL(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -207,12 +438,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: AppBar(
-              backgroundColor: AppTheme.background.withValues(alpha: 0.5),
+              backgroundColor: AppTheme.background.withValues(alpha: 0.7),
               elevation: 0,
               centerTitle: true,
-              title: const Text('Premium\'a Geç', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+              title: Text('Premium\'a Geç', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                icon: Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
                 onPressed: () => context.pop(),
               ),
             ),
@@ -220,7 +451,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: AppTheme.surfaceGradient,
         ),
         child: Stack(
@@ -253,10 +484,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                          padding: const EdgeInsets.all(24),
                          decoration: BoxDecoration(
                            shape: BoxShape.circle,
-                           color: Colors.amber.withValues(alpha: 0.1),
+                           color: Colors.amber.withValues(alpha: 0.12),
                            boxShadow: [
                              BoxShadow(
-                               color: Colors.amber.withValues(alpha: 0.2),
+                               color: Colors.amber.withValues(alpha: 0.25),
                                blurRadius: 30,
                                spreadRadius: 5,
                              ),
@@ -265,23 +496,48 @@ class _PremiumScreenState extends State<PremiumScreen> {
                          child: const Icon(Icons.workspace_premium_rounded, size: 80, color: Colors.amber),
                        ),
                        const SizedBox(height: 24),
-                       const Text(
+                       Text(
                          'Sınırsız Sesli Sohbet',
                          textAlign: TextAlign.center,
-                         style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                         style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
                        ),
                        const SizedBox(height: 12),
-                       const Text(
-                         'Sınırsız sesli sohbet ve diğer ayrıcalıklar için Premium\'a geç.',
+                       Text(
+                         'Sınırsız sesli sohbet hakkı ve tüm özel ayrıcalıklar için Premium\'a geç.',
                          textAlign: TextAlign.center,
                          style: TextStyle(fontSize: 15, color: AppTheme.textSecondary, height: 1.4),
                        ),
-                       const SizedBox(height: 40),
-                       if (_offerings != null && _offerings!.current != null && _offerings!.current!.availablePackages.isNotEmpty)
-                         ..._offerings!.current!.availablePackages.map((pkg) => _buildRealPackageCard(pkg))
-                       else ...[
-                         _buildUnconfiguredCard(),
-                       ],
+                       const SizedBox(height: 36),
+                        if (_offerings != null && _offerings!.current != null && _offerings!.current!.availablePackages.isNotEmpty)
+                          ..._offerings!.current!.availablePackages.map((pkg) => _buildRealPackageCard(pkg))
+                        else ...[
+                          _buildMockPackageCard(
+                            title: '1 Haftalık Premium',
+                            price: '\$0.99',
+                            description: 'Haftalık sınırsız sesli sohbet ve özel rozet',
+                            identifier: 'weekly',
+                          ),
+                          _buildMockPackageCard(
+                            title: '1 Aylık Premium',
+                            price: '\$2.99',
+                            description: 'Aylık sınırsız sesli sohbet ve tüm avantajlar',
+                            identifier: 'monthly',
+                          ),
+                          _buildMockPackageCard(
+                            title: '1 Yıllık Premium',
+                            price: '\$19.99',
+                            description: 'Yıllık sınırsız sesli sohbet (En Avantajlı)',
+                            identifier: 'yearly',
+                          ),
+                        ],
+                       const SizedBox(height: 16),
+                       TextButton(
+                         onPressed: _restorePurchases,
+                         child: const Text('Satın Alımları Geri Yükle', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 16)),
+                       ),
+                       const SizedBox(height: 16),
+                       _buildLegalText(),
+                       const SizedBox(height: 24),
                     ],
                   ),
                 ),

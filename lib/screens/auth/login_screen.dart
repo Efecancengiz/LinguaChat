@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:linguachat/config/theme.dart';
 import 'package:linguachat/providers/auth_provider.dart';
 import 'package:linguachat/services/firestore_service.dart';
@@ -62,15 +63,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.signInWithGoogle();
-
-    if (success && mounted) {
-      context.go('/');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,24 +80,27 @@ class _LoginScreenState extends State<LoginScreen>
                   children: [
                     const SizedBox(height: 40),
                     // Logo area
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primary.withValues(alpha: 0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
+                    Center(
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.asset(
+                            'assets/images/app_icon.png',
+                            fit: BoxFit.cover,
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.translate_rounded,
-                        color: Colors.white,
-                        size: 40,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -113,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen>
                       shaderCallback: (bounds) =>
                           AppTheme.primaryGradient.createShader(bounds),
                       child: const Text(
-                        'LinguaChat',
+                        'WorldPals',
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.w800,
@@ -123,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Dünya ile konuş, dünyanı genişlet',
                       style: TextStyle(
                         color: AppTheme.textSecondary,
@@ -178,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen>
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      style: const TextStyle(color: AppTheme.textPrimary),
+                      style: TextStyle(color: AppTheme.textPrimary),
                       decoration: const InputDecoration(
                         labelText: 'E-posta',
                         prefixIcon:
@@ -200,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen>
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
-                      style: const TextStyle(color: AppTheme.textPrimary),
+                      style: TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Şifre',
                         prefixIcon: const Icon(Icons.lock_outline,
@@ -324,20 +319,25 @@ class _LoginScreenState extends State<LoginScreen>
                         );
                       },
                     ),
-                    const SizedBox(height: 16),
-                    // OR divider
+
+                    const SizedBox(height: 20),
+                    // "veya" Divider
                     Row(
                       children: [
-                        Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
-                        const Padding(
+                        Expanded(child: Divider(color: AppTheme.border.withValues(alpha: 0.5))),
+                        Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('VEYA', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                          child: Text(
+                            'veya',
+                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                          ),
                         ),
-                        Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+                        Expanded(child: Divider(color: AppTheme.border.withValues(alpha: 0.5))),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    // Google login button
+                    const SizedBox(height: 20),
+
+                    // Google Login Button
                     Consumer<AuthProvider>(
                       builder: (context, auth, _) {
                         return Container(
@@ -345,22 +345,30 @@ class _LoginScreenState extends State<LoginScreen>
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
                           child: ElevatedButton(
-                            onPressed: auth.isLoading ? null : _handleGoogleSignIn,
+                            onPressed: auth.isLoading
+                                ? null
+                                : () async {
+                                    final success = await auth.signInWithGoogle();
+                                    if (success && context.mounted) {
+                                      context.go('/');
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
+                              foregroundColor: Colors.black87,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: Colors.grey.shade300),
                               ),
                             ),
                             child: auth.isLoading
@@ -368,17 +376,27 @@ class _LoginScreenState extends State<LoginScreen>
                                     width: 24,
                                     height: 24,
                                     child: CircularProgressIndicator(
-                                      color: Colors.black,
+                                      color: AppTheme.primary,
                                       strokeWidth: 2,
                                     ),
                                   )
                                 : Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(Icons.g_mobiledata, color: Colors.black87, size: 36),
-                                      const SizedBox(width: 8),
+                                      CachedNetworkImage(
+                                        imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png',
+                                        width: 20,
+                                        height: 20,
+                                        placeholder: (context, url) => const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 1.5),
+                                        ),
+                                        errorWidget: (context, url, error) => const Icon(Icons.g_mobiledata_rounded, size: 24, color: Colors.blue),
+                                      ),
+                                      const SizedBox(width: 12),
                                       const Text(
-                                        'Google ile Giriş Yap',
+                                        'Google ile Devam Et',
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w600,
@@ -391,12 +409,13 @@ class _LoginScreenState extends State<LoginScreen>
                         );
                       },
                     ),
+
                     const SizedBox(height: 24),
                     // Register link
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           'Hesabınız yok mu? ',
                           style: TextStyle(color: AppTheme.textSecondary),
                         ),

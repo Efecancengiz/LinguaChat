@@ -13,6 +13,7 @@ class PostModel {
   final DateTime createdAt;
   /// 'everyone' = herkese görünür, 'friends' = sadece arkadaşlara görünür
   final String audience;
+  final String? location;
 
   PostModel({
     required this.id,
@@ -26,6 +27,7 @@ class PostModel {
     this.repostsCount = 0,
     DateTime? createdAt,
     this.audience = 'everyone',
+    this.location,
   }) : createdAt = createdAt ?? DateTime.now();
 
   factory PostModel.fromFirestore(DocumentSnapshot doc) {
@@ -46,6 +48,7 @@ class PostModel {
       repostsCount: (data['repostsCount'] as num?)?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       audience: data['audience']?.toString() ?? 'everyone',
+      location: data['location']?.toString(),
     );
   }
 
@@ -61,6 +64,7 @@ class PostModel {
       'repostsCount': repostsCount,
       'createdAt': Timestamp.fromDate(createdAt),
       'audience': audience,
+      if (location != null) 'location': location,
     };
   }
 
@@ -74,6 +78,7 @@ class PostModel {
     int? commentsCount,
     int? repostsCount,
     String? audience,
+    String? location,
   }) {
     return PostModel(
       id: id ?? this.id,
@@ -87,6 +92,7 @@ class PostModel {
       repostsCount: repostsCount ?? this.repostsCount,
       createdAt: createdAt,
       audience: audience ?? this.audience,
+      location: location ?? this.location,
     );
   }
 }

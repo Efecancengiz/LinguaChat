@@ -33,9 +33,44 @@ class FirestoreService {
         .map((doc) => doc.exists ? UserModel.fromFirestore(doc) : null);
   }
 
+  Future<void> _updateUserPostsProfileInfo(String uid, {String? displayName, String? photoUrl}) async {
+    if (displayName == null && photoUrl == null) return;
+    
+    try {
+      final postsQuery = await _firestore
+          .collection('posts')
+          .where('userId', isEqualTo: uid)
+          .get();
+          
+      if (postsQuery.docs.isNotEmpty) {
+        final updateData = <String, dynamic>{};
+        if (displayName != null) updateData['userDisplayName'] = displayName;
+        if (photoUrl != null) updateData['userPhotoUrl'] = photoUrl;
+        
+        const batchSize = 400;
+        final docs = postsQuery.docs;
+        for (var i = 0; i < docs.length; i += batchSize) {
+          final batch = _firestore.batch();
+          for (var doc in docs.skip(i).take(batchSize)) {
+            batch.update(doc.reference, updateData);
+          }
+          await batch.commit();
+        }
+      }
+    } catch (e) {
+      debugPrint('FirestoreService._updateUserPostsProfileInfo hata: $e');
+    }
+  }
+
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     try {
-      await _firestore.collection('users').doc(uid).update(data);
+      await _firestore.collection('users').doc(uid).set(data, SetOptions(merge: true));
+      
+      final displayName = data['displayName'] as String?;
+      final photoUrl = data['photoUrl'] as String?;
+      if (displayName != null || photoUrl != null) {
+        await _updateUserPostsProfileInfo(uid, displayName: displayName, photoUrl: photoUrl);
+      }
     } catch (e) {
       debugPrint('FirestoreService.updateUser hata: $e');
       rethrow;
@@ -44,24 +79,53 @@ class FirestoreService {
 
   Future<void> updateUserDisplayName(String uid, String oldName, String newName) async {
     if (oldName == newName) return;
-    
-    final newUsernameRef = _firestore.collection('usernames').doc(newName);
-    final oldUsernameRef = _firestore.collection('usernames').doc(oldName);
+
+    // 1. Ekstra Güvenlik: users koleksiyonunda birebir eşleşen başka bir kullanıcı var mı kontrol et
+    final existingUserQuery = await _firestore
+        .collection('users')
+        .where('displayName', isEqualTo: newName)
+        .get();
+        
+    for (var doc in existingUserQuery.docs) {
+      if (doc.id != uid) {
+        throw Exception('username-taken');
+      }
+    }
+
+    final newUsernameRef = _firestore.collection('usernames').doc(newName.toLowerCase());
+    final oldUsernameRef = _firestore.collection('usernames').doc(oldName.toLowerCase());
     
     try {
       await _firestore.runTransaction((txn) async {
-        final snap = await txn.get(newUsernameRef);
-        if (snap.exists) {
-          throw Exception('username-taken');
+        if (oldName.toLowerCase() != newName.toLowerCase()) {
+          final snap = await txn.get(newUsernameRef);
+          if (snap.exists) {
+            final ownerUid = snap.data()?['uid'];
+            if (ownerUid != null && ownerUid != uid) {
+              throw Exception('username-taken');
+            }
+          }
+          
+          final oldSnap = await txn.get(oldUsernameRef);
+          
+          // Yeni kullanıcı adını al
+          txn.set(newUsernameRef, {'uid': uid});
+          
+          // Eskisini sadece varsa ve bize aitse sil
+          if (oldSnap.exists) {
+            final oldOwnerUid = oldSnap.data()?['uid'];
+            if (oldOwnerUid == uid) {
+              txn.delete(oldUsernameRef);
+            }
+          }
         }
-        
-        // Yeni kullanıcı adını al ve eskisini sil
-        txn.set(newUsernameRef, {'uid': uid});
-        txn.delete(oldUsernameRef);
         
         // Kullanıcı belgesini güncelle
         txn.update(_firestore.collection('users').doc(uid), {'displayName': newName});
       });
+
+      // Update displayName in all of the user's posts
+      await _updateUserPostsProfileInfo(uid, displayName: newName);
     } catch (e) {
       debugPrint('FirestoreService.updateUserDisplayName hata: $e');
       rethrow;
@@ -120,15 +184,33 @@ class FirestoreService {
 
   Future<void> deleteUser(String uid) async {
     try {
-      // 1. Profil resmini silmek istersen Storage servisi kullanılmalı (şimdilik Firestore)
-      // 2. Kullanıcıyı users koleksiyonundan sil
-      await _firestore.collection('users').doc(uid).delete();
+      final doc = await _firestore.collection('users').doc(uid).get();
+      final displayName = doc.data()?['displayName'] as String?;
       
-      // Not: Kullanıcının gönderileri, yorumları veya alt koleksiyonları (following/followers vb.)
-      // arka planda bir Cloud Function ile silinmelidir (veya Firebase Extensions).
-      // İstemci üzerinden her şeyi silmek uzun sürebilir ve güvenlik kurallarına takılabilir.
+      final batch = _firestore.batch();
+      batch.delete(_firestore.collection('users').doc(uid));
+      
+      if (displayName != null && displayName.isNotEmpty) {
+        batch.delete(_firestore.collection('usernames').doc(displayName.toLowerCase()));
+      }
+      
+      await batch.commit();
     } catch (e) {
       debugPrint('FirestoreService.deleteUser hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> restoreUser(UserModel user) async {
+    try {
+      final batch = _firestore.batch();
+      batch.set(_firestore.collection('users').doc(user.uid), user.toFirestore());
+      if (user.displayName.isNotEmpty) {
+        batch.set(_firestore.collection('usernames').doc(user.displayName.toLowerCase()), {'uid': user.uid});
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('FirestoreService.restoreUser hata: $e');
       rethrow;
     }
   }
@@ -258,7 +340,14 @@ class FirestoreService {
   Stream<List<RoomModel>> roomsStream() {
     return _firestore.collection('rooms').snapshots().map(
           (snapshot) {
-            final rooms = snapshot.docs.map((doc) => RoomModel.fromFirestore(doc)).toList();
+            final rooms = <RoomModel>[];
+            for (final doc in snapshot.docs) {
+              try {
+                rooms.add(RoomModel.fromFirestore(doc));
+              } catch (e) {
+                debugPrint('FirestoreService.roomsStream parsing hatası (doc: ${doc.id}): $e');
+              }
+            }
             final codeOrder = AppConstants.languageRooms.map((r) => r['code'] as String).toList();
             rooms.sort((a, b) {
               final idxA = codeOrder.indexOf(a.languageCode);
@@ -335,6 +424,117 @@ class FirestoreService {
     } catch (e) {
       debugPrint('FirestoreService.deleteRoomMessage hata: $e');
       rethrow;
+    }
+  }
+
+  Future<void> syncRoomMembersCount(String roomId) async {
+    try {
+      final roomRef = _firestore.collection('rooms').doc(roomId);
+      final roomDoc = await roomRef.get();
+      if (!roomDoc.exists) return;
+      final currentCount = roomDoc.data()?['memberCount'] ?? 0;
+
+      final activeUsersSnap = await roomRef.collection('activeUsers').get();
+      
+      final now = DateTime.now();
+      int activeCount = 0;
+      final batch = _firestore.batch();
+      bool hasDeletions = false;
+      
+      for (var doc in activeUsersSnap.docs) {
+        final data = doc.data();
+        final lastSeenTimestamp = data['lastSeen'] as Timestamp?;
+        if (lastSeenTimestamp != null) {
+          final lastSeen = lastSeenTimestamp.toDate();
+          final difference = now.difference(lastSeen).inMinutes;
+          
+          if (difference.abs() <= 2) {
+            activeCount++;
+          } else {
+            batch.delete(doc.reference);
+            hasDeletions = true;
+          }
+        } else {
+          activeCount++;
+        }
+      }
+      
+      if (currentCount != activeCount || hasDeletions) {
+        batch.update(roomRef, {'memberCount': activeCount});
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint('FirestoreService.syncRoomMembersCount hata: $e');
+    }
+  }
+
+  Future<void> joinRoom(String roomId, String userId) async {
+    try {
+      final roomRef = _firestore.collection('rooms').doc(roomId);
+      final activeUserRef = roomRef.collection('activeUsers').doc(userId);
+      
+      await activeUserRef.set({
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
+      
+      // Parse roomId to get languageCode and level if room doesn't exist
+      final doc = await roomRef.get();
+      if (!doc.exists) {
+        final parts = roomId.split('_');
+        final langCode = parts[0];
+        final level = parts.length > 1 ? parts[1] : 'Tümü';
+        
+        final roomInfo = AppConstants.languageRooms.firstWhere(
+          (r) => r['code'] == langCode,
+          orElse: () => {'name': langCode, 'flag': '🌍'},
+        );
+        
+        await roomRef.set({
+          'name': '${roomInfo['name']} Room',
+          'languageCode': langCode,
+          'flagEmoji': roomInfo['flag'],
+          'description': level == 'Tümü' 
+              ? '${roomInfo['name']} dilinde genel sohbet odası' 
+              : '${roomInfo['name']} dilinde $level sohbet odası',
+          'memberCount': 1,
+          'level': level,
+          'lastMessage': null,
+          'isCustom': false,
+        });
+      }
+      
+      await syncRoomMembersCount(roomId);
+    } catch (e) {
+      debugPrint('FirestoreService.joinRoom hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> leaveRoom(String roomId, String userId) async {
+    try {
+      final roomRef = _firestore.collection('rooms').doc(roomId);
+      final activeUserRef = roomRef.collection('activeUsers').doc(userId);
+      
+      await activeUserRef.delete();
+      await syncRoomMembersCount(roomId);
+    } catch (e) {
+      debugPrint('FirestoreService.leaveRoom hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateRoomPresence(String roomId, String userId) async {
+    try {
+      await _firestore
+          .collection('rooms')
+          .doc(roomId)
+          .collection('activeUsers')
+          .doc(userId)
+          .set({
+        'lastSeen': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.updateRoomPresence hata: $e');
     }
   }
 
@@ -570,7 +770,10 @@ class FirestoreService {
         .where('participants', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
-      final docs = snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      final docs = snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .where((chat) => chat['lastMessage'] != null)
+          .toList();
       docs.sort((a, b) {
         final t1 = a['updatedAt'] as Timestamp?;
         final t2 = b['updatedAt'] as Timestamp?;
@@ -603,7 +806,9 @@ class FirestoreService {
           .collection('messages')
           .add(message.toFirestore());
 
-      await _firestore.collection('directMessages').doc(chatId).update({
+      final parts = chatId.split('_');
+      await _firestore.collection('directMessages').doc(chatId).set({
+        if (parts.length == 2) 'participants': parts,
         'lastMessage': {
           'text': message.text,
           'senderId': message.senderId,
@@ -611,7 +816,7 @@ class FirestoreService {
           'isRead': false,
         },
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('FirestoreService.sendDmMessage hata: $e');
       rethrow;
@@ -691,11 +896,29 @@ class FirestoreService {
 
   Future<void> markChatAsRead(String chatId, String currentUserId) async {
     try {
+      final parts = chatId.split('_');
+      String otherUserId = '';
+      if (parts.length == 2) {
+        otherUserId = parts.firstWhere((id) => id != currentUserId, orElse: () => '');
+      }
+
+      if (otherUserId.isEmpty) {
+        final chatDoc = await _firestore.collection('directMessages').doc(chatId).get();
+        if (chatDoc.exists) {
+          final participants = chatDoc.data()?['participants'] as List<dynamic>?;
+          if (participants != null) {
+            otherUserId = participants.firstWhere((id) => id != currentUserId, orElse: () => '') as String;
+          }
+        }
+      }
+
+      if (otherUserId.isEmpty) return;
+
       final messagesSnapshot = await _firestore
           .collection('directMessages')
           .doc(chatId)
           .collection('messages')
-          .where('senderId', isNotEqualTo: currentUserId)
+          .where('senderId', isEqualTo: otherUserId)
           .where('isRead', isEqualTo: false)
           .get();
 
@@ -751,12 +974,15 @@ class FirestoreService {
     }
   }
 
-  Future<int> syncVoiceUsage({bool increment = false}) async {
+  Future<int> syncVoiceUsage({bool increment = false, int? usedSeconds}) async {
     try {
       final callable = FirebaseFunctions.instance.httpsCallable('syncVoiceUsage');
-      final result = await callable.call(<String, dynamic>{'increment': increment});
+      final result = await callable.call(<String, dynamic>{
+        'increment': increment,
+        'usedSeconds': ?usedSeconds,
+      });
       final data = Map<String, dynamic>.from(result.data as Map);
-      return (data['dailyVoiceMinutes'] as num?)?.toInt() ?? 0;
+      return (data['dailyVoiceSeconds'] as num?)?.toInt() ?? 0;
     } catch (e) {
       debugPrint('FirestoreService.syncVoiceUsage hata: $e');
       rethrow;
@@ -819,27 +1045,56 @@ class FirestoreService {
     }
   }
 
-  /// Kullanıcıyı takip et
+  /// Gerçek takip ve takipçi belgelerini sayarak sayıları günceller (kendi kendini onarma)
+  Future<void> syncUserFollowCounts(String uid) async {
+    try {
+      final myFollowing = await _firestore.collection('users').doc(uid).collection('following').get();
+      final myFollowers = await _firestore.collection('users').doc(uid).collection('followers').get();
+
+      await _firestore.collection('users').doc(uid).update({
+        'followingCount': max(0, myFollowing.docs.length),
+        'followersCount': max(0, myFollowers.docs.length),
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.syncUserFollowCounts hata: $e');
+    }
+  }
+
+  /// Kullanıcının posts koleksiyonundaki gerçek post sayısını sayıp,
+  /// postsCount alanına eşitler. (Eksi düşmeleri engeller)
+  Future<void> syncUserPostsCount(String uid) async {
+    try {
+      final aggregateQuery = await _firestore.collection('posts').where('userId', isEqualTo: uid).count().get();
+      final count = aggregateQuery.count ?? 0;
+      await _firestore.collection('users').doc(uid).set({'postsCount': count}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('FirestoreService.syncUserPostsCount hata: $e');
+    }
+  }
+
+  /// Kullanıcıyı takip et (tek yönlü — karşılıklı değil)
   Future<void> followUser(String currentUserId, String targetUserId) async {
     try {
-      final batch = _firestore.batch();
-      
-      // 1. Alt koleksiyonlara ekle
+      // Çift takibi önle
       final followingRef = _firestore.collection('users').doc(currentUserId).collection('following').doc(targetUserId);
+      final alreadyFollowing = await followingRef.get();
+      if (alreadyFollowing.exists) return;
+
+      final batch = _firestore.batch();
+
+      // 1. Alt koleksiyonlara ekle (tek yönlü)
       final followerRef = _firestore.collection('users').doc(targetUserId).collection('followers').doc(currentUserId);
-      
       batch.set(followingRef, {'createdAt': FieldValue.serverTimestamp()});
       batch.set(followerRef, {'createdAt': FieldValue.serverTimestamp()});
-      
-      // 2. Sayaçları güncelle
+
+      // 2. Sayaçları güncelle (sadece ilgili taraflar)
       final currentUserRef = _firestore.collection('users').doc(currentUserId);
       final targetUserRef = _firestore.collection('users').doc(targetUserId);
-      
       batch.set(currentUserRef, {'followingCount': FieldValue.increment(1)}, SetOptions(merge: true));
       batch.set(targetUserRef, {'followersCount': FieldValue.increment(1)}, SetOptions(merge: true));
-      
+
       await batch.commit();
-      
+
       // Bildirim gönder
       final currentUserDoc = await currentUserRef.get();
       if (currentUserDoc.exists) {
@@ -862,19 +1117,29 @@ class FirestoreService {
     try {
       final batch = _firestore.batch();
       
-      // 1. Alt koleksiyonlardan sil
+      // 1. Alt koleksiyonlardan sil (Eğer takip ediyorsak)
       final followingRef = _firestore.collection('users').doc(currentUserId).collection('following').doc(targetUserId);
       final followerRef = _firestore.collection('users').doc(targetUserId).collection('followers').doc(currentUserId);
       
-      batch.delete(followingRef);
-      batch.delete(followerRef);
+      final followingSnap = await followingRef.get();
+      final wasFollowing = followingSnap.exists;
+
+      if (wasFollowing) {
+        batch.delete(followingRef);
+        batch.delete(followerRef);
+      }
       
       // 1.5. Karşı tarafın listelerinden de sil (Arkadaşlık modeli = Karşılıklı takip)
       final theirFollowingRef = _firestore.collection('users').doc(targetUserId).collection('following').doc(currentUserId);
       final theirFollowerRef = _firestore.collection('users').doc(currentUserId).collection('followers').doc(targetUserId);
       
-      batch.delete(theirFollowingRef);
-      batch.delete(theirFollowerRef);
+      final theirFollowingSnap = await theirFollowingRef.get();
+      final wasTheirFollowing = theirFollowingSnap.exists;
+
+      if (wasTheirFollowing) {
+        batch.delete(theirFollowingRef);
+        batch.delete(theirFollowerRef);
+      }
 
       // 1.6. Arkadaşlık listelerinden sil
       final friendRef1 = _firestore.collection('friends').doc(currentUserId).collection('userFriends').doc(targetUserId);
@@ -882,19 +1147,29 @@ class FirestoreService {
       batch.delete(friendRef1);
       batch.delete(friendRef2);
       
-      // 2. Sayaçları azalt (hem kendisi hem karşı taraf için)
+      // 2. Sayaçları azalt (sadece silinen ilişkiler için)
       final currentUserRef = _firestore.collection('users').doc(currentUserId);
       final targetUserRef = _firestore.collection('users').doc(targetUserId);
       
-      batch.set(currentUserRef, {
-         'followingCount': FieldValue.increment(-1),
-         'followersCount': FieldValue.increment(-1)
-      }, SetOptions(merge: true));
-      
-      batch.set(targetUserRef, {
-         'followersCount': FieldValue.increment(-1),
-         'followingCount': FieldValue.increment(-1)
-      }, SetOptions(merge: true));
+      final Map<String, dynamic> currentUserUpdates = {};
+      final Map<String, dynamic> targetUserUpdates = {};
+
+      if (wasFollowing) {
+        currentUserUpdates['followingCount'] = FieldValue.increment(-1);
+        targetUserUpdates['followersCount'] = FieldValue.increment(-1);
+      }
+
+      if (wasTheirFollowing) {
+        currentUserUpdates['followersCount'] = FieldValue.increment(-1);
+        targetUserUpdates['followingCount'] = FieldValue.increment(-1);
+      }
+
+      if (currentUserUpdates.isNotEmpty) {
+        batch.set(currentUserRef, currentUserUpdates, SetOptions(merge: true));
+      }
+      if (targetUserUpdates.isNotEmpty) {
+        batch.set(targetUserRef, targetUserUpdates, SetOptions(merge: true));
+      }
       
       await batch.commit();
     } catch (e) {
@@ -931,6 +1206,9 @@ class FirestoreService {
           .collection('users')
           .doc(post.userId)
           .set({'postsCount': FieldValue.increment(1)}, SetOptions(merge: true));
+
+      // Garanti senkronizasyon (asenkron, UI'ı bekletmez)
+      syncUserPostsCount(post.userId);
     } catch (e) {
       debugPrint('FirestoreService.createPost hata: $e');
       rethrow;
@@ -1081,6 +1359,23 @@ class FirestoreService {
         .map((doc) => doc.exists);
   }
 
+  /// Gönderiyi beğenen kullanıcıları gerçek zamanlı dinle
+  Stream<List<UserModel>> postLikesStream(String postId) {
+    return _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('likes')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .asyncMap((snap) async {
+      final uids = snap.docs.map((doc) => doc.id).toList();
+      if (uids.isEmpty) return [];
+
+      final users = await Future.wait(uids.map((uid) => getUser(uid)));
+      return users.whereType<UserModel>().toList();
+    });
+  }
+
   /// Gönderi yorumu ekle
   Future<void> addComment({
     required String postId,
@@ -1200,8 +1495,23 @@ class FirestoreService {
         {'postsCount': FieldValue.increment(-1)},
       );
       await batch.commit();
+
+      // Garanti senkronizasyon (asenkron, UI'ı bekletmez)
+      syncUserPostsCount(userId);
     } catch (e) {
       debugPrint('FirestoreService.deletePost hata: $e');
+      rethrow;
+    }
+  }
+
+  /// Gönderiyi düzenle (İçerik güncellemesi)
+  Future<void> updatePostContent(String postId, String newContent) async {
+    try {
+      await _firestore.collection('posts').doc(postId).update({
+        'content': newContent,
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.updatePostContent hata: $e');
       rethrow;
     }
   }
@@ -1267,34 +1577,38 @@ class FirestoreService {
         .map((doc) => doc.exists);
   }
 
-  /// Get saved posts stream
-  Stream<List<PostModel>> getSavedPostsStream(String userId) async* {
-    yield* _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('savedPosts')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .asyncMap((snap) async {
-          if (snap.docs.isEmpty) return [];
-          final postIds = snap.docs.map((d) => d.id).toList();
-          
-          List<PostModel> posts = [];
-          for (var i = 0; i < postIds.length; i += 30) {
-            final chunk = postIds.skip(i).take(30).toList();
-            final postsSnap = await _firestore.collection('posts').where(FieldPath.documentId, whereIn: chunk).get();
-            posts.addAll(postsSnap.docs.map((doc) => PostModel.fromFirestore(doc)));
-          }
-          
-          // Preserve ordering from savedPosts
-          posts.sort((a, b) {
-            final idxA = postIds.indexOf(a.id);
-            final idxB = postIds.indexOf(b.id);
-            return idxA.compareTo(idxB);
-          });
-          
-          return posts;
-        });
+  /// Get saved posts
+  Future<List<PostModel>> getSavedPosts(String userId) async {
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('savedPosts')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      if (snap.docs.isEmpty) return [];
+      final postIds = snap.docs.map((d) => d.id).toList();
+      
+      List<PostModel> posts = [];
+      for (var i = 0; i < postIds.length; i += 30) {
+        final chunk = postIds.skip(i).take(30).toList();
+        final postsSnap = await _firestore.collection('posts').where(FieldPath.documentId, whereIn: chunk).get();
+        posts.addAll(postsSnap.docs.map((doc) => PostModel.fromFirestore(doc)));
+      }
+      
+      // Preserve ordering from savedPosts
+      posts.sort((a, b) {
+        final idxA = postIds.indexOf(a.id);
+        final idxB = postIds.indexOf(b.id);
+        return idxA.compareTo(idxB);
+      });
+      
+      return posts;
+    } catch (e) {
+      debugPrint('FirestoreService.getSavedPosts hata: $e');
+      return [];
+    }
   }
 
   // ============ STATS ============
@@ -1325,11 +1639,8 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
       
-      // Engellendiğinde takipten çıkarma işlemleri vs yapılabilir
-      final followingRef = _firestore.collection('users').doc(currentUserId).collection('following').doc(targetUserId);
-      if ((await followingRef.get()).exists) {
-        await unfollowUser(currentUserId, targetUserId);
-      }
+      // Engellendiğinde her iki yöndeki takip/arkadaşlık ilişkilerini tamamen temizle
+      await unfollowUser(currentUserId, targetUserId);
     } catch (e) {
       debugPrint('FirestoreService.blockUser hata: $e');
       rethrow;
@@ -1342,6 +1653,21 @@ class FirestoreService {
     } catch (e) {
       debugPrint('FirestoreService.unblockUser hata: $e');
       rethrow;
+    }
+  }
+
+  Future<bool> isBlocked(String currentUserId, String targetUserId) async {
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(currentUserId)
+          .collection('blockedUsers')
+          .doc(targetUserId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      debugPrint('FirestoreService.isBlocked hata: $e');
+      return false;
     }
   }
 
@@ -1365,6 +1691,21 @@ class FirestoreService {
     }
   }
 
+  Stream<List<UserModel>> blockedUsersStream(String currentUserId) {
+    return _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
+        .snapshots()
+        .asyncMap((snap) async {
+      final blockedIds = snap.docs.map((doc) => doc.id).toList();
+      if (blockedIds.isEmpty) return [];
+
+      final users = await Future.wait(blockedIds.map((id) => getUser(id)));
+      return users.whereType<UserModel>().toList();
+    });
+  }
+
   Future<void> reportUser(String reportedUserId, String reporterId, String reason) async {
     try {
       await _firestore.collection('reports').add({
@@ -1377,6 +1718,22 @@ class FirestoreService {
       });
     } catch (e) {
       debugPrint('FirestoreService.reportUser hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> reportMessage(String messageId, String reporterId, String text) async {
+    try {
+      await _firestore.collection('reports').add({
+        'type': 'message',
+        'messageId': messageId,
+        'reporterId': reporterId,
+        'text': text,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.reportMessage hata: $e');
       rethrow;
     }
   }
@@ -1396,4 +1753,95 @@ class FirestoreService {
       rethrow;
     }
   }
+
+  // ============ ADMIN MODERATION ============
+  Stream<List<Map<String, dynamic>>> getPendingReportsStream() {
+    return _firestore
+        .collection('reports')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  Future<void> resolveReport(String reportId, {String action = 'resolved'}) async {
+    try {
+      await _firestore.collection('reports').doc(reportId).update({
+        'status': action,
+        'resolvedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.resolveReport hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> adminDeleteRoomMessage(String roomId, String messageId) async {
+    try {
+      await _firestore
+          .collection('rooms')
+          .doc(roomId)
+          .collection('messages')
+          .doc(messageId)
+          .delete();
+    } catch (e) {
+      debugPrint('FirestoreService.adminDeleteRoomMessage hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> adminDeleteDmMessage(String chatId, String messageId) async {
+    try {
+      await _firestore
+          .collection('dm_chats')
+          .doc(chatId)
+          .collection('messages')
+          .doc(messageId)
+          .delete();
+    } catch (e) {
+      debugPrint('FirestoreService.adminDeleteDmMessage hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> adminDeletePost(String postId) async {
+    try {
+      await _firestore.collection('posts').doc(postId).delete();
+    } catch (e) {
+      debugPrint('FirestoreService.adminDeletePost hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> adminSetUserBanStatus(String uid, bool isBanned, {String? reason}) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'isBanned': isBanned,
+        'banReason': isBanned ? (reason ?? 'Topluluk kuralları ihlali') : null,
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.adminSetUserBanStatus hata: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> adminSetUserAdminRole(String uid, bool isAdmin) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'isAdmin': isAdmin,
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.adminSetUserAdminRole hata: $e');
+      rethrow;
+    }
+  }
+
+  Stream<List<UserModel>> getAdminAllUsersStream({int limit = 100}) {
+    return _firestore
+        .collection('users')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => UserModel.fromFirestore(d)).toList());
+  }
 }
+

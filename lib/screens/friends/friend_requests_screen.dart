@@ -40,7 +40,7 @@ class FriendRequestsScreen extends StatelessWidget {
         body: currentUserId == null
             ? const SizedBox.shrink()
             : Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: AppTheme.surfaceGradient,
                 ),
                 child: TabBarView(
@@ -61,7 +61,7 @@ class FriendRequestsScreen extends StatelessWidget {
                       final requests = snapshot.data ?? [];
 
                       if (requests.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Column(
                             mainAxisAlignment:
                                 MainAxisAlignment.center,
@@ -111,14 +111,14 @@ class FriendRequestsScreen extends StatelessWidget {
                                     children: [
                                       Text(
                                         request.fromUserName,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: AppTheme
                                               .textPrimary,
                                           fontWeight:
                                               FontWeight.w600,
                                         ),
                                       ),
-                                      const Text(
+                                      Text(
                                         'Arkadaşlık isteği gönderdi',
                                         style: TextStyle(
                                           color: AppTheme
@@ -207,7 +207,7 @@ class FriendRequestsScreen extends StatelessWidget {
                       final requests = snapshot.data ?? [];
 
                       if (requests.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Column(
                             mainAxisAlignment:
                                 MainAxisAlignment.center,
@@ -254,7 +254,7 @@ class FriendRequestsScreen extends StatelessWidget {
                                         request.toUserName.isNotEmpty
                                             ? request.toUserName
                                             : 'Kullanıcı',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: AppTheme
                                               .textPrimary,
                                           fontWeight:

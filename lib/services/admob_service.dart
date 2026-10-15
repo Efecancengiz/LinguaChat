@@ -10,8 +10,8 @@ class AdMobService {
   static String get appOpenAdUnitId {
     if (Platform.isAndroid) {
       if (kReleaseMode) {
-        // TODO: Android gerçek Ad Unit ID eklenecek (Şimdilik test)
-        return 'ca-app-pub-3940256099942544/9257395921'; 
+        // Android Gerçek Ad Unit ID
+        return 'ca-app-pub-8374639525815726/6602164451'; 
       } else {
         // Android Test ID
         return 'ca-app-pub-3940256099942544/9257395921';

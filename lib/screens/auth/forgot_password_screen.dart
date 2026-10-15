@@ -23,9 +23,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _handleReset() async {
-    if (_emailController.text.trim().isEmpty) return;
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen e-posta adresinizi girin.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
     final auth = context.read<AuthProvider>();
-    final success = await auth.resetPassword(_emailController.text.trim());
+    final success = await auth.resetPassword(email);
     if (success && mounted) {
       setState(() => _sent = true);
     }
@@ -52,7 +61,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 color: AppTheme.primary,
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Şifremi Unuttum',
                 style: TextStyle(
                   fontSize: 24,
@@ -62,7 +71,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'E-posta adresinize şifre sıfırlama bağlantısı göndereceğiz.',
                 style: TextStyle(color: AppTheme.textSecondary),
                 textAlign: TextAlign.center,
@@ -95,7 +104,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: AppTheme.textPrimary),
+                  style: TextStyle(color: AppTheme.textPrimary),
                   decoration: const InputDecoration(
                     labelText: 'E-posta',
                     prefixIcon:

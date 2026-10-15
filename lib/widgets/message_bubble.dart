@@ -69,6 +69,8 @@ class _MessageBubbleState extends State<MessageBubble> {
         ? _translatedText! 
         : widget.message.text;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onLongPress: widget.onLongPress,
       child: Padding(
@@ -110,8 +112,8 @@ class _MessageBubbleState extends State<MessageBubble> {
               child: InkWell(
                 onTap: widget.onLongPress,
                 borderRadius: BorderRadius.circular(12),
-                child: const Padding(
-                  padding: EdgeInsets.all(4.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
                   child: Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
                 ),
               ),
@@ -127,18 +129,19 @@ class _MessageBubbleState extends State<MessageBubble> {
                         end: Alignment.bottomRight,
                       )
                     : null,
-                color: widget.isMe ? null : AppTheme.surfaceLight,
+                color: widget.isMe ? null : (isDark ? const Color(0xFF1C1C1E) : AppTheme.surfaceLight),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
                   bottomLeft: Radius.circular(widget.isMe ? 20 : (widget.showAvatar ? 4 : 20)),
                   bottomRight: Radius.circular(widget.isMe ? (widget.showAvatar ? 4 : 20) : 20),
                 ),
+                border: !widget.isMe && isDark ? Border.all(color: const Color(0xFF262626), width: 0.8) : null,
                 boxShadow: [
                   BoxShadow(
                     color: (widget.isMe ? AppTheme.primary : Colors.black)
-                        .withValues(alpha: widget.isMe ? 0.3 : 0.1),
-                    blurRadius: widget.isMe ? 12 : 8,
+                        .withValues(alpha: widget.isMe ? 0.3 : 0.05),
+                    blurRadius: widget.isMe ? 12 : 6,
                     offset: Offset(0, widget.isMe ? 4 : 2),
                   ),
                 ],

@@ -23,8 +23,8 @@ class FollowListScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
         elevation: 0,
-        title: Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
-        iconTheme: const IconThemeData(color: AppTheme.textPrimary),
+        title: Text(title, style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
+        iconTheme: IconThemeData(color: AppTheme.textPrimary),
       ),
       body: FutureBuilder<List<UserModel>>(
         future: future,
@@ -38,21 +38,21 @@ class FollowListScreen extends StatelessWidget {
           
           final users = snapshot.data ?? [];
           if (users.isEmpty) {
-            return const Center(child: Text('Burada henüz kimse yok.', style: TextStyle(color: AppTheme.textSecondary)));
+            return Center(child: Text('Burada henüz kimse yok.', style: TextStyle(color: AppTheme.textSecondary)));
           }
 
           return ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: users.length,
-            separatorBuilder: (context, index) => const Divider(color: AppTheme.border, height: 1),
+            separatorBuilder: (context, index) => Divider(color: AppTheme.border, height: 1),
             itemBuilder: (context, index) {
               final user = users[index];
               return ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 leading: UserAvatar(photoUrl: user.photoUrl, displayName: user.displayName, radius: 24),
-                title: Text(user.displayName, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+                title: Text(user.displayName, style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
                 subtitle: user.bio.isNotEmpty 
-                    ? Text(user.bio, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppTheme.textSecondary)) 
+                    ? Text(user.bio, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppTheme.textSecondary)) 
                     : null,
                 onTap: () => context.push('/user/${user.uid}'),
               );

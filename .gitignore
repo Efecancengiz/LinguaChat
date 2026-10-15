@@ -38,3 +38,13 @@ Thumbs.db
 .env
 build
 
+
+# Gizlilik ve Yapılandırma Dosyaları
+*.jks
+*.keystore
+google-services.json
+GoogleService-Info.plist
+build/
+.dart_tool/
+.idea/
+.vscode/

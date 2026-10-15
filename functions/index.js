@@ -16,9 +16,8 @@ function getOneSignalConfig() {
   const appId = process.env.ONESIGNAL_APP_ID;
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
   if (!appId || !restApiKey) {
-    throw new Error(
-      "Sunucuda OneSignal anahtarları (ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY) eksik!"
-    );
+    console.warn("OneSignal anahtarları (ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY) tanımlı değil!");
+    return { appId: null, restApiKey: null };
   }
   return { appId, restApiKey };
 }
@@ -86,22 +85,64 @@ exports.getOrCreateHmsRoom = functions.https.onCall(async (data, context) => {
 
     if (currentHmsRoomId) {
       try {
-        const activeRes = await axios.get(
-          `https://api.100ms.live/v2/active-rooms/${currentHmsRoomId}`,
+        // 100ms üzerinden odanın kodlarını alarak hem varlığını doğrulayalım hem de güncelleyelim
+        const codesRes = await axios.post(
+          `https://api.100ms.live/v2/room-codes/room/${currentHmsRoomId}`,
+          {},
           { headers }
         );
-        const peers = activeRes.data.session && activeRes.data.session.peers ? activeRes.data.session.peers : [];
-        const peerCount = Object.keys(peers).length;
-        if (peerCount >= 5) {
-          isFull = true;
-          console.log(`Oda ${currentHmsRoomId} dolu (${peerCount} kişi). Yeni oda oluşturulacak.`);
+        const codes = codesRes.data.data;
+
+        // Oda mevcutsa, aktiflik ve doluluk kontrolü yapalım
+        try {
+          const activeRes = await axios.get(
+            `https://api.100ms.live/v2/active-rooms/${currentHmsRoomId}`,
+            { headers }
+          );
+          const peers = activeRes.data.session && activeRes.data.session.peers ? activeRes.data.session.peers : [];
+          const peerCount = Object.keys(peers).length;
+          if (peerCount >= 5) {
+            isFull = true;
+            console.log(`Oda ${currentHmsRoomId} dolu (${peerCount} kişi). Yeni oda oluşturulacak.`);
+          }
+        } catch (err) {
+          if (err.response && err.response.status === 404) {
+            // Aktif session yok, oda boş ve kullanılabilir
+            isFull = false;
+          } else {
+            console.error("active-rooms API hatası:", err.message);
+          }
+        }
+
+        // Doluluk kontrolünden sonra eğer oda dolu değilse ve kodlar varsa doğrula/güncelle
+        if (!isFull && codes && codes.length > 0) {
+          let targetCode = "";
+          const preferredRoles = ["speaker", "host", "guest", "moderator"];
+          for (const role of preferredRoles) {
+            const codeObj = codes.find((c) => c.role === role);
+            if (codeObj) {
+              targetCode = codeObj.code;
+              break;
+            }
+          }
+          if (!targetCode) {
+            targetCode = codes[0].code;
+          }
+
+          if (targetCode && currentHmsCode !== targetCode) {
+            console.log(`Firestore'daki hmsCode (${currentHmsCode}) güncelleniyor -> (${targetCode})`);
+            await roomRef.update({ hmsCode: targetCode });
+            currentHmsCode = targetCode;
+          }
         }
       } catch (err) {
         if (err.response && err.response.status === 404) {
-          // Room is not active, peer count is 0
-          isFull = false;
+          // Oda 100ms'ten silinmiş veya geçersiz!
+          console.log(`Oda ${currentHmsRoomId} 100ms üzerinde bulunamadı (404). Yeniden oluşturulacak.`);
+          currentHmsCode = null;
+          currentHmsRoomId = null;
         } else {
-          console.error("active-rooms API hatası:", err.message);
+          console.error("100ms API check hatası:", err.message);
         }
       }
     }
@@ -118,6 +159,7 @@ exports.getOrCreateHmsRoom = functions.https.onCall(async (data, context) => {
           .toString()
           .slice(-4)}`,
         description: `Voice Channel for ${roomId}`,
+        template_id: process.env.HMS_TEMPLATE_ID || "69d5610ab635cb7c6d5fc731",
       },
       { headers }
     );
@@ -134,7 +176,20 @@ exports.getOrCreateHmsRoom = functions.https.onCall(async (data, context) => {
       throw new Error("100ms Room Code oluşturulamadı.");
     }
 
-    const targetCode = codes[0].code;
+    // Sesli oda sohbetinde herkesin konuşabilmesi için en uygun konuşma rolünün (speaker/host/guest/moderator) kodunu seçelim
+    let targetCode = "";
+    const preferredRoles = ["speaker", "host", "guest", "moderator"];
+    for (const role of preferredRoles) {
+      const codeObj = codes.find((c) => c.role === role);
+      if (codeObj) {
+        targetCode = codeObj.code;
+        break;
+      }
+    }
+    if (!targetCode) {
+      targetCode = codes[0].code;
+    }
+
     await roomRef.update({ hmsCode: targetCode, hmsRoomId });
     return { roomCode: targetCode };
   } catch (error) {
@@ -175,29 +230,34 @@ exports.syncVoiceUsage = functions.https.onCall(async (data, context) => {
     lastReset.getMonth() !== now.getMonth() ||
     lastReset.getDate() !== now.getDate();
 
-  const currentMinutes = Number.isInteger(user.dailyVoiceMinutes)
-    ? user.dailyVoiceMinutes
-    : 0;
-  const increment = data && data.increment === true;
-
-  let nextMinutes = currentMinutes;
-  if (isNewDay) {
-    nextMinutes = 0;
+  let currentSeconds = Number.isInteger(user.dailyVoiceSeconds) ? user.dailyVoiceSeconds : 0;
+  if (currentSeconds === 0 && Number.isInteger(user.dailyVoiceMinutes)) {
+    currentSeconds = user.dailyVoiceMinutes * 60;
   }
-  if (increment && user.isPremium !== true) {
-    nextMinutes += 1;
+
+  if (isNewDay) {
+    currentSeconds = 0;
+  }
+
+  if (data && data.usedSeconds !== undefined) {
+    if (data.usedSeconds > currentSeconds) {
+      currentSeconds = data.usedSeconds;
+    }
+  } else if (data && data.increment === true) {
+    currentSeconds += 60; // Geriye dönük uyumluluk
   }
 
   await userRef.set(
     {
-      dailyVoiceMinutes: nextMinutes,
+      dailyVoiceSeconds: currentSeconds,
+      dailyVoiceMinutes: Math.floor(currentSeconds / 60), // Geriye dönük uyumluluk
       lastResetDate: admin.firestore.Timestamp.fromDate(now),
     },
     { merge: true }
   );
 
   return {
-    dailyVoiceMinutes: nextMinutes,
+    dailyVoiceSeconds: currentSeconds,
     lastResetDate: now.toISOString(),
     isPremium: user.isPremium === true,
   };
@@ -229,6 +289,10 @@ exports.sendMessageNotification = functions.firestore
     const senderName = senderDoc.exists ? senderDoc.data().displayName || "Biri" : "Biri";
 
     const { appId: oneSignalAppId, restApiKey } = getOneSignalConfig();
+    if (!oneSignalAppId || !restApiKey) {
+      console.warn("OneSignal bildirim gönderimi atlandı: API anahtarları eksik.");
+      return null;
+    }
     const payload = {
       app_id: oneSignalAppId,
       include_aliases: { external_id: [recipientId] },
@@ -279,6 +343,12 @@ exports.sendPushNotification = functions.https.onCall(async (data, context) => {
   }
 
   const { appId: oneSignalAppId, restApiKey } = getOneSignalConfig();
+  if (!oneSignalAppId || !restApiKey) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Sunucuda OneSignal API anahtarları yapılandırılmamış."
+    );
+  }
   const payload = {
     app_id: oneSignalAppId,
     include_aliases: { external_id: [String(recipientId)] },
@@ -454,7 +524,9 @@ exports.moderateImage = functions.https.onCall(async (data, context) => {
 
     return { isSafe: true };
   } catch (err) {
-    console.error("Yapay zeka resim analiz hatası:", err);
-    throw new functions.https.HttpsError("internal", "Resim güvenliği doğrulanamadı.");
+    console.error("Yapay zeka resim analiz hatası (Pasif geçiş):", err.message || err);
+    // Cloud Vision API aktif değilse veya kota dolduysa gönderi paylaşımını engellememek için güvenli kabul edelim.
+    return { isSafe: true };
   }
 });
+

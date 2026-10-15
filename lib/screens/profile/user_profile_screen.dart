@@ -9,6 +9,7 @@ import 'package:linguachat/services/firestore_service.dart';
 import 'package:linguachat/models/friend_request_model.dart';
 import 'package:linguachat/widgets/user_avatar.dart';
 import 'package:linguachat/widgets/language_badge.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:convert';
 import 'package:linguachat/models/post_model.dart';
 
@@ -25,6 +26,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   bool _isFollowing = false;
   bool _hasPendingRequest = false;
+  bool _isBlocked = false;
   bool _isLoading = true;
 
   @override
@@ -39,11 +41,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     final isFollowing = await _firestoreService.isFollowing(currentUserId, widget.userId);
     final hasPendingRequest = await _firestoreService.hasPendingRequest(currentUserId, widget.userId);
+    final isBlocked = await _firestoreService.isBlocked(currentUserId, widget.userId);
+
+    // Hedef kullanıcının sayaçlarını senkronize et/düzelt (kendi kendini onarma)
+    await _firestoreService.syncUserFollowCounts(widget.userId);
 
     if (mounted) {
       setState(() {
         _isFollowing = isFollowing;
         _hasPendingRequest = hasPendingRequest;
+        _isBlocked = isBlocked;
         _isLoading = false;
       });
     }
@@ -86,14 +93,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  void _startDm() {
+  Future<void> _startDm() async {
     final currentUserId = context.read<AuthProvider>().currentUserId;
     if (currentUserId == null) return;
 
-    _firestoreService.createDmChat(currentUserId, widget.userId);
-    final chatId =
-        _firestoreService.getDmChatId(currentUserId, widget.userId);
-    context.push('/dm/$chatId', extra: {'userId': widget.userId});
+    try {
+      await _firestoreService.createDmChat(currentUserId, widget.userId);
+      if (!mounted) return;
+      
+      final chatId =
+          _firestoreService.getDmChatId(currentUserId, widget.userId);
+      context.push('/dm/$chatId', extra: {'userId': widget.userId});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sohbet başlatılamadı: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+    }
   }
 
   void _showFullScreenProfilePicture(BuildContext context, String? photoUrl) {
@@ -128,11 +148,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 width: MediaQuery.of(context).size.width - 80,
                                 height: MediaQuery.of(context).size.width - 80,
                               )
-                            : Image.network(
-                                photoUrl,
+                            : CachedNetworkImage(
+                                imageUrl: photoUrl,
                                 fit: BoxFit.cover,
                                 width: MediaQuery.of(context).size.width - 80,
                                 height: MediaQuery.of(context).size.width - 80,
+                                placeholder: (context, url) => Container(
+                                  width: MediaQuery.of(context).size.width - 80,
+                                  height: MediaQuery.of(context).size.width - 80,
+                                  color: AppTheme.surfaceLight,
+                                  child: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+                                ),
+                                errorWidget: (context, url, error) => const Icon(Icons.error_outline, color: Colors.white),
                               ),
                       ),
                     ),
@@ -160,20 +187,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: const Text('Kullanıcıyı Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('Kullanıcıyı Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
         content: TextField(
           controller: reasonController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Şikayet nedeni...',
             hintStyle: TextStyle(color: AppTheme.textSecondary),
           ),
-          style: const TextStyle(color: AppTheme.textPrimary),
+          style: TextStyle(color: AppTheme.textPrimary),
           maxLines: 3,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -198,12 +225,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: const Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
-        content: const Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
+        title: Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -217,6 +244,36 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               }
             },
             child: const Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUnblockDialog(BuildContext context, String currentUserId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text('Engeli Kaldır', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu kullanıcının engelini kaldırmak istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _firestoreService.unblockUser(currentUserId, widget.userId);
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcı engeli kaldırıldı.')),
+                );
+                _checkFriendship();
+              }
+            },
+            child: const Text('Engeli Kaldır', style: TextStyle(color: AppTheme.primary)),
           ),
         ],
       ),
@@ -242,7 +299,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 if (value == 'report') {
                   _showReportDialog(context, currentUserId);
                 } else if (value == 'block') {
-                  _showBlockDialog(context, currentUserId);
+                  if (_isBlocked) {
+                    _showUnblockDialog(context, currentUserId);
+                  } else {
+                    _showBlockDialog(context, currentUserId);
+                  }
                 }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -256,13 +317,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ],
                   ),
                 ),
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'block',
                   child: Row(
                     children: [
-                      Icon(Icons.block_rounded, color: AppTheme.danger, size: 20),
-                      SizedBox(width: 8),
-                      Text('Engelle', style: TextStyle(color: AppTheme.danger)),
+                      Icon(_isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                          color: _isBlocked ? AppTheme.primary : AppTheme.danger, size: 20),
+                      const SizedBox(width: 8),
+                      Text(_isBlocked ? 'Engeli Kaldır' : 'Engelle',
+                          style: TextStyle(color: _isBlocked ? AppTheme.primary : AppTheme.danger)),
                     ],
                   ),
                 ),
@@ -282,7 +345,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
           final user = snapshot.data;
           if (user == null) {
-            return const Center(
+            return Center(
               child: Text(
                 'Kullanıcı bulunamadı',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
@@ -309,7 +372,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   children: [
                     Text(
                       user.displayName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
@@ -366,11 +429,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.location_city_rounded, size: 14, color: AppTheme.textSecondary),
+                      Icon(Icons.location_city_rounded, size: 14, color: AppTheme.textSecondary),
                       const SizedBox(width: 4),
                       Text(
                         user.city,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 14,
                         ),
@@ -382,7 +445,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   const SizedBox(height: 12),
                   Text(
                     user.bio,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 14,
                     ),
@@ -409,64 +472,82 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 const SizedBox(height: 16),
                 
                 // Action buttons
-                if (!isMe && !_isLoading)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.primaryGradient,
-                          borderRadius: BorderRadius.circular(12),
+                if (!isMe && !_isLoading && currentUserId != null)
+                  if (_isBlocked)
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showUnblockDialog(context, currentUserId),
+                        icon: const Icon(Icons.lock_open_rounded, color: Colors.white, size: 18),
+                        label: const Text('Engeli Kaldır', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         ),
-                        child: ElevatedButton.icon(
-                          onPressed: _startDm,
-                          icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
-                          label: const Text('Mesaj', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ElevatedButton.icon(
+                            onPressed: _startDm,
+                            icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
+                            label: const Text('Mesaj', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: _hasPendingRequest ? null : _handleFriendAction,
-                        icon: Icon(
-                          _isFollowing 
-                              ? Icons.how_to_reg_rounded 
-                              : _hasPendingRequest 
-                                  ? Icons.access_time_rounded 
-                                  : Icons.person_add_alt_1_rounded, 
-                          size: 18
-                        ),
-                        label: Text(
-                          _isFollowing 
-                              ? 'Arkadaşsın' 
-                              : _hasPendingRequest 
-                                  ? 'İstek Gönderildi' 
-                                  : 'Arkadaş Ekle'
-                        ),
-                        style: OutlinedButton.styleFrom(
-                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                           side: BorderSide(
-                             color: _isFollowing || _hasPendingRequest 
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: _hasPendingRequest ? null : _handleFriendAction,
+                          icon: Icon(
+                            _isFollowing 
+                                ? Icons.how_to_reg_rounded 
+                                : _hasPendingRequest 
+                                    ? Icons.access_time_rounded 
+                                    : Icons.person_add_alt_1_rounded, 
+                            size: 18
+                          ),
+                          label: Text(
+                            _isFollowing 
+                                ? 'Arkadaşsın' 
+                                : _hasPendingRequest 
+                                    ? 'İstek Gönderildi' 
+                                    : 'Arkadaş Ekle'
+                          ),
+                          style: OutlinedButton.styleFrom(
+                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                             side: BorderSide(
+                               color: _isFollowing || _hasPendingRequest 
+                                   ? AppTheme.textSecondary 
+                                   : AppTheme.primary
+                             ),
+                             foregroundColor: _isFollowing || _hasPendingRequest 
                                  ? AppTheme.textSecondary 
-                                 : AppTheme.primary
-                           ),
-                           foregroundColor: _isFollowing || _hasPendingRequest 
-                               ? AppTheme.textSecondary 
-                               : AppTheme.primary,
+                                 : AppTheme.primary,
+                          ),
                         ),
-                      ),
-                    ],
-                  ) else if (_isLoading && !isMe) ...[
+                      ],
+                    ) else if (_isLoading && !isMe) ...[
                     const CircularProgressIndicator(),
                   ],
                 const SizedBox(height: 24),
                 // Languages
                 if (user.knownLanguages.isNotEmpty) ...[
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Bildiği Diller',
@@ -491,7 +572,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ],
                 if (user.learningLanguages.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Öğreniyor',
@@ -584,7 +665,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 12,
             ),

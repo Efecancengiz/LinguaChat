@@ -51,7 +51,7 @@ class NotificationService {
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       _channelId,
       _channelName,
-      description: 'LinguaChat mesaj bildirimleri',
+      description: 'WorldPals mesaj bildirimleri',
       importance: Importance.max,
       playSound: true,
       enableVibration: true,
@@ -111,7 +111,7 @@ class NotificationService {
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
-          channelDescription: 'LinguaChat mesaj bildirimleri',
+          channelDescription: 'WorldPals mesaj bildirimleri',
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
@@ -155,7 +155,7 @@ class NotificationService {
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
-          channelDescription: 'LinguaChat mesaj bildirimleri',
+          channelDescription: 'WorldPals mesaj bildirimleri',
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',

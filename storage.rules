@@ -9,14 +9,14 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Post images: posts/{uid}/{filename}
-    match /posts/{uid}/{fileName} {
+    // Post images: posts/{uid}/{allPaths=**}
+    match /posts/{uid}/{allPaths=**} {
       allow read: if isSignedIn();
       allow write: if isOwner(uid);
     }
 
-    // User profile images: users/{uid}/{filename}
-    match /users/{uid}/{fileName} {
+    // User profile images: users/{uid}/{allPaths=**}
+    match /users/{uid}/{allPaths=**} {
       allow read: if isSignedIn();
       allow write: if isOwner(uid);
     }

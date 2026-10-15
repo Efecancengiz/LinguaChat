@@ -10,6 +10,7 @@ import 'package:linguachat/services/firestore_service.dart';
 import 'package:linguachat/models/post_model.dart';
 import 'package:linguachat/widgets/user_avatar.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:linguachat/widgets/liked_users_sheet.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -21,6 +22,22 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final FirestoreService _firestoreService = FirestoreService();
+  Stream<List<PostModel>>? _feedPostsStream;
+  Stream<List<PostModel>>? _friendsFeedStream;
+  String? _lastUserId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final user = context.watch<AuthProvider>().user;
+    final currentUserId = user?.uid;
+    
+    if (currentUserId != null && currentUserId != _lastUserId) {
+      _lastUserId = currentUserId;
+      _feedPostsStream = _firestoreService.getFeedPostsStream(currentUserId);
+      _friendsFeedStream = _firestoreService.getFriendsFeedStream2(currentUserId);
+    }
+  }
 
   @override
   void initState() {
@@ -42,7 +59,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: AppTheme.surfaceGradient,
         ),
         child: SafeArea(
@@ -55,7 +72,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Akış',
                       style: TextStyle(
                         fontSize: 28,
@@ -119,20 +136,30 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _PostsList(
-                      stream: _firestoreService.getFeedPostsStream(user.uid),
-                      currentUserId: user.uid,
-                      currentUserDisplayName: user.displayName,
-                      currentUserPhotoUrl: user.photoUrl,
-                      firestoreService: _firestoreService,
-                      emptyMessage: 'Henüz gönderi yok.',
-                    ),
-                    _FriendsFeed(
-                      currentUserId: user.uid,
-                      currentUserDisplayName: user.displayName,
-                      currentUserPhotoUrl: user.photoUrl,
-                      firestoreService: _firestoreService,
-                    ),
+                    if (_feedPostsStream != null)
+                      _PostsList(
+                        stream: _feedPostsStream!,
+                        currentUserId: user.uid,
+                        currentUserDisplayName: user.displayName,
+                        currentUserPhotoUrl: user.photoUrl,
+                        firestoreService: _firestoreService,
+                        emptyMessage: 'Henüz gönderi yok.',
+                      )
+                    else
+                      const Center(child: CircularProgressIndicator()),
+                    
+                    if (_friendsFeedStream != null)
+                      _PostsList(
+                        stream: _friendsFeedStream!,
+                        currentUserId: user.uid,
+                        currentUserDisplayName: user.displayName,
+                        currentUserPhotoUrl: user.photoUrl,
+                        firestoreService: _firestoreService,
+                        emptyMessage: 'Arkadaşların henüz paylaşım yapmadı.',
+                        showAddFriendsButton: true,
+                      )
+                    else
+                      const Center(child: CircularProgressIndicator()),
                   ],
                 ),
               ),
@@ -147,7 +174,7 @@ class _FeedScreenState extends State<FeedScreen> with SingleTickerProviderStateM
 // ─────────────────────────────────────────────────────────────
 // POSTS LIST (generic, works with Stream)
 // ─────────────────────────────────────────────────────────────
-class _PostsList extends StatelessWidget {
+class _PostsList extends StatefulWidget {
   final Stream<List<PostModel>> stream;
   final String currentUserId;
   final String currentUserDisplayName;
@@ -167,9 +194,18 @@ class _PostsList extends StatelessWidget {
   });
 
   @override
+  State<_PostsList> createState() => _PostsListState();
+}
+
+class _PostsListState extends State<_PostsList> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     return StreamBuilder<List<PostModel>>(
-      stream: stream,
+      stream: widget.stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
@@ -186,7 +222,7 @@ class _PostsList extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text('Bir hata oluştu:\n${snapshot.error}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                 ],
               ),
             ),
@@ -199,17 +235,17 @@ class _PostsList extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  showAddFriendsButton
+                  widget.showAddFriendsButton
                       ? Icons.people_outline_rounded
                       : Icons.dynamic_feed_rounded,
                   size: 64,
                   color: AppTheme.textSecondary.withValues(alpha: 0.4),
                 ),
                 const SizedBox(height: 16),
-                Text(emptyMessage,
+                Text(widget.emptyMessage,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
-                if (showAddFriendsButton) ...[
+                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                if (widget.showAddFriendsButton) ...[
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => context.push('/friends'),
@@ -228,10 +264,10 @@ class _PostsList extends StatelessWidget {
             final post = posts[index];
             return _PostCard(
               post: post,
-              currentUserId: currentUserId,
-              currentUserDisplayName: currentUserDisplayName,
-              currentUserPhotoUrl: currentUserPhotoUrl,
-              firestoreService: firestoreService,
+              currentUserId: widget.currentUserId,
+              currentUserDisplayName: widget.currentUserDisplayName,
+              currentUserPhotoUrl: widget.currentUserPhotoUrl,
+              firestoreService: widget.firestoreService,
             );
           },
         );
@@ -240,35 +276,7 @@ class _PostsList extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// FRIENDS FEED (real-time stream)
-// ─────────────────────────────────────────────────────────────
-class _FriendsFeed extends StatelessWidget {
-  final String currentUserId;
-  final String currentUserDisplayName;
-  final String currentUserPhotoUrl;
-  final FirestoreService firestoreService;
-
-  const _FriendsFeed({
-    required this.currentUserId,
-    required this.currentUserDisplayName,
-    required this.currentUserPhotoUrl,
-    required this.firestoreService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _PostsList(
-      stream: firestoreService.getFriendsFeedStream2(currentUserId),
-      currentUserId: currentUserId,
-      currentUserDisplayName: currentUserDisplayName,
-      currentUserPhotoUrl: currentUserPhotoUrl,
-      firestoreService: firestoreService,
-      emptyMessage: 'Arkadaşların henüz paylaşım yapmadı.',
-      showAddFriendsButton: true,
-    );
-  }
-}
+// Removed _FriendsFeed as it's directly rendered in the tab view now
 
 
 
@@ -296,20 +304,20 @@ class _PostCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: const Text('Gönderiyi Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
+        title: Text('Gönderiyi Şikayet Et', style: TextStyle(color: AppTheme.textPrimary)),
         content: TextField(
           controller: reasonController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Şikayet nedeni...',
             hintStyle: TextStyle(color: AppTheme.textSecondary),
           ),
-          style: const TextStyle(color: AppTheme.textPrimary),
+          style: TextStyle(color: AppTheme.textPrimary),
           maxLines: 3,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -334,12 +342,12 @@ class _PostCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: const Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
-        content: const Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
+        title: Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Bu kullanıcıyı engellemek istediğinize emin misiniz? Artık ondan mesaj almayacak ve içeriklerini görmeyeceksiniz.', style: TextStyle(color: AppTheme.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -358,6 +366,98 @@ class _PostCard extends StatelessWidget {
     );
   }
 
+  void _showEditDialog(BuildContext context) {
+    final controller = TextEditingController(text: post.content);
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        bool isLoading = false;
+        return StatefulBuilder(
+          builder: (stateCtx, setState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text('Gönderiyi Düzenle', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: TextField(
+                  controller: controller,
+                  style: TextStyle(color: AppTheme.textPrimary),
+                  maxLines: 6,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'Gönderi içeriği...',
+                    hintStyle: TextStyle(color: AppTheme.textSecondary),
+                    filled: true,
+                    fillColor: AppTheme.surfaceLight,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.pop(dialogCtx),
+                  child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                ),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final text = controller.text.trim();
+                          if (text.isEmpty) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Gönderi içeriği boş olamaz.')),
+                              );
+                            }
+                            return;
+                          }
+                          setState(() => isLoading = true);
+                          try {
+                            await firestoreService.updatePostContent(post.id, text);
+                            if (dialogCtx.mounted) {
+                              Navigator.pop(dialogCtx);
+                            }
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Gönderi güncellendi.')),
+                              );
+                            }
+                          } catch (e) {
+                            setState(() => isLoading = false);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Güncellenirken bir hata oluştu.')),
+                              );
+                            }
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: AppTheme.primary,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Kaydet', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showComments(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -373,96 +473,30 @@ class _PostCard extends StatelessWidget {
     );
   }
 
-  void _showRepostConfirm(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tekrar Paylaş',
-                style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Bu gönderiyi profilinde tekrar paylaşmak istiyor musun?',
-                style: TextStyle(
-                    color: AppTheme.textSecondary.withValues(alpha: 0.9),
-                    fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('İptal'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        try {
-                          await firestoreService.repostPost(
-                            originalPost: post,
-                            currentUserId: currentUserId,
-                            currentUserDisplayName: currentUserDisplayName,
-                            currentUserPhotoUrl: currentUserPhotoUrl,
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Gönderi tekrar paylaşıldı!')),
-                            );
-                          }
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Bir hata oluştu.')),
-                            );
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.repeat_rounded, size: 18),
-                      label: const Text('Paylaş'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     timeago.setLocaleMessages('tr', timeago.TrMessages());
     final timeStr = timeago.format(post.createdAt, locale: 'tr');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.glassDecoration.copyWith(
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF121212) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : const Color(0xFFE2E8F0),
+          width: 0.8,
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,36 +523,91 @@ class _PostCard extends StatelessWidget {
                   children: [
                     Text(
                       post.userDisplayName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary,
                         fontSize: 15,
                       ),
                     ),
-                    Text(
-                      timeStr,
-                      style: const TextStyle(
-                          color: AppTheme.textSecondary, fontSize: 12),
+                    Row(
+                      children: [
+                        Text(
+                          timeStr,
+                          style: TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 12),
+                        ),
+                        if (post.location != null && post.location!.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.location_on_rounded, size: 12, color: AppTheme.primary),
+                          const SizedBox(width: 2),
+                          Expanded(
+                            child: Text(
+                              post.location!,
+                              style: const TextStyle(
+                                  color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
               ),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded,
+                  icon: Icon(Icons.more_vert_rounded,
                       color: AppTheme.textSecondary, size: 20),
                   color: AppTheme.surfaceLight,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: AppTheme.border, width: 0.5),
+                    side: BorderSide(color: AppTheme.border, width: 0.5),
                   ),
                   onSelected: (value) async {
-                    if (value == 'delete') {
+                    if (value == 'admin_delete') {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
                           backgroundColor: AppTheme.surface,
-                          title: const Text('Gönderiyi Sil', style: TextStyle(color: AppTheme.textPrimary)),
-                          content: const Text('Bu gönderiyi kalıcı olarak silmek istediğine emin misin?', style: TextStyle(color: AppTheme.textSecondary)),
+                          title: Text('Yönetici Olarak Sil', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                          content: Text('Bu gönderiyi yönetici yetkisiyle kalıcı olarak kaldırmak istediğinizden emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Kaldır', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        try {
+                          await firestoreService.adminDeletePost(post.id);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Gönderi yönetici tarafından kaldırıldı! ✅')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Silinirken hata oluştu: $e')),
+                            );
+                          }
+                        }
+                      }
+                    } else if (value == 'delete') {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppTheme.surface,
+                          title: Text('Gönderiyi Sil', style: TextStyle(color: AppTheme.textPrimary)),
+                          content: Text('Bu gönderiyi kalıcı olarak silmek istediğine emin misin?', style: TextStyle(color: AppTheme.textSecondary)),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
@@ -548,47 +637,77 @@ class _PostCard extends StatelessWidget {
                           }
                         }
                       }
+                    } else if (value == 'edit') {
+                      _showEditDialog(context);
                     } else if (value == 'report') {
                       _showReportDialog(context);
                     } else if (value == 'block') {
                       _showBlockDialog(context);
                     }
                   },
-                  itemBuilder: (context) => [
-                    if (post.userId == currentUserId)
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
-                            SizedBox(width: 8),
-                            Text('Sil', style: TextStyle(color: AppTheme.danger)),
-                          ],
+                  itemBuilder: (context) {
+                    final currentUser = context.read<AuthProvider>().user;
+                    final isAdmin = currentUser?.isAdmin == true;
+
+                    return [
+                      if (post.userId == currentUserId) ...[
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined, color: AppTheme.textPrimary, size: 20),
+                              SizedBox(width: 8),
+                              Text('Düzenle', style: TextStyle(color: AppTheme.textPrimary)),
+                            ],
+                          ),
                         ),
-                      ),
-                    if (post.userId != currentUserId) ...[
-                      const PopupMenuItem(
-                        value: 'report',
-                        child: Row(
-                          children: [
-                            Icon(Icons.flag_rounded, color: AppTheme.warning, size: 20),
-                            SizedBox(width: 8),
-                            Text('Gönderiyi Şikayet Et', style: TextStyle(color: AppTheme.warning)),
-                          ],
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline, color: AppTheme.danger, size: 20),
+                              SizedBox(width: 8),
+                              Text('Sil', style: TextStyle(color: AppTheme.danger)),
+                            ],
+                          ),
                         ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'block',
-                        child: Row(
-                          children: [
-                            Icon(Icons.block_rounded, color: AppTheme.danger, size: 20),
-                            SizedBox(width: 8),
-                            Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.danger)),
-                          ],
+                      ],
+                      if (post.userId != currentUserId) ...[
+                        if (isAdmin) ...[
+                          const PopupMenuItem(
+                            value: 'admin_delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_forever_rounded, color: AppTheme.danger, size: 20),
+                                SizedBox(width: 8),
+                                Text('Yönetici Olarak Sil 🗑️', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const PopupMenuItem(
+                          value: 'report',
+                          child: Row(
+                            children: [
+                              Icon(Icons.flag_rounded, color: AppTheme.warning, size: 20),
+                              SizedBox(width: 8),
+                              Text('Gönderiyi Şikayet Et', style: TextStyle(color: AppTheme.warning)),
+                            ],
+                          ),
                         ),
-                      ),
-                    ]
-                  ],
+                        const PopupMenuItem(
+                          value: 'block',
+                          child: Row(
+                            children: [
+                              Icon(Icons.block_rounded, color: AppTheme.danger, size: 20),
+                              SizedBox(width: 8),
+                              Text('Kullanıcıyı Engelle', style: TextStyle(color: AppTheme.danger)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ];
+                  },
                 ),
             ],
           ),
@@ -637,7 +756,7 @@ class _PostCard extends StatelessWidget {
           // ── Content ─────────────────────────────────────────
           Text(
             post.content,
-            style: const TextStyle(
+            style: TextStyle(
                 color: AppTheme.textPrimary, fontSize: 15, height: 1.4),
           ),
 
@@ -664,7 +783,7 @@ class _PostCard extends StatelessWidget {
                 errorWidget: (context, url, error) => Container(
                   height: 180,
                   color: AppTheme.surface,
-                  child: const Center(
+                  child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -697,6 +816,13 @@ class _PostCard extends StatelessWidget {
                     activeColor: Colors.redAccent,
                     onTap: () => firestoreService.togglePostLike(
                         post.id, currentUserId),
+                    onLabelTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => LikedUsersSheet(postId: post.id),
+                      );
+                    },
                   );
                 },
               ),
@@ -715,17 +841,14 @@ class _PostCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              const SizedBox(width: 8),
-
-              // Dış paylaş
               _ActionButton(
                 icon: Icons.share_outlined,
                 label: '',
                 isActive: false,
                 activeColor: AppTheme.primary,
                 onTap: () {
-                   final shareText = '${post.userDisplayName} LinguaChat\'te bir gönderi paylaştı:\n\n"${post.content}"\n\nHemen sen de aramıza katıl!';
-                   Share.share(shareText);
+                   final shareText = '${post.userDisplayName} WorldPals\'te bir gönderi paylaştı:\n\n"${post.content}"\n\nHemen sen de aramıza katıl!';
+                   SharePlus.instance.share(ShareParams(text: shareText));
                 },
               ),
 
@@ -762,6 +885,7 @@ class _ActionButton extends StatelessWidget {
   final IconData? activeIcon;
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onLabelTap;
   final bool isActive;
   final Color activeColor;
 
@@ -770,6 +894,7 @@ class _ActionButton extends StatelessWidget {
     this.activeIcon,
     required this.label,
     required this.onTap,
+    this.onLabelTap,
     required this.activeColor,
     this.isActive = false,
   });
@@ -807,12 +932,19 @@ class _ActionButton extends StatelessWidget {
             ),
             if (label.isNotEmpty) ...[
               const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                    fontSize: 13),
+              GestureDetector(
+                onTap: onLabelTap ?? onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                        fontSize: 13),
+                  ),
+                ),
               ),
             ],
           ],
@@ -887,7 +1019,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
@@ -909,7 +1041,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       'Yorumlar',
                       style: TextStyle(
                           color: AppTheme.textPrimary,
@@ -918,7 +1050,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close,
+                      icon: Icon(Icons.close,
                           color: AppTheme.textSecondary, size: 20),
                       onPressed: () => Navigator.pop(context),
                     ),
@@ -926,7 +1058,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                 ),
               ),
 
-              const Divider(color: AppTheme.border, height: 1),
+              Divider(color: AppTheme.border, height: 1),
 
               // Comment list
               Expanded(
@@ -950,7 +1082,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                 color: AppTheme.textSecondary
                                     .withValues(alpha: 0.4)),
                             const SizedBox(height: 12),
-                            const Text('Henüz yorum yok.',
+                            Text('Henüz yorum yok.',
                                 style: TextStyle(
                                     color: AppTheme.textSecondary,
                                     fontSize: 14)),
@@ -980,31 +1112,43 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              UserAvatar(
-                                photoUrl: c['userPhotoUrl'] ?? '',
-                                displayName: c['userDisplayName'] ?? '?',
-                                radius: 16,
-                                isOnline: false,
-                                showOnlineIndicator: false,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          c['userDisplayName'] ?? '',
-                                          style: const TextStyle(
-                                              color: AppTheme.textPrimary,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 13),
-                                        ),
-                                        const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    context.push('/user/${c['userId']}');
+                                  },
+                                  child: UserAvatar(
+                                    photoUrl: c['userPhotoUrl'] ?? '',
+                                    displayName: c['userDisplayName'] ?? '?',
+                                    radius: 16,
+                                    isOnline: false,
+                                    showOnlineIndicator: false,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          GestureDetector(
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              context.push('/user/${c['userId']}');
+                                            },
+                                            child: Text(
+                                              c['userDisplayName'] ?? '',
+                                              style: TextStyle(
+                                                  color: AppTheme.textPrimary,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
                                         Text(
                                           timeStr,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               color: AppTheme.textSecondary,
                                               fontSize: 11),
                                         ),
@@ -1013,7 +1157,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                     const SizedBox(height: 4),
                                     Text(
                                       c['content'] ?? '',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           color: AppTheme.textPrimary,
                                           fontSize: 14,
                                           height: 1.4),
@@ -1027,11 +1171,11 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                   height: 24,
                                   child: PopupMenuButton<String>(
                                     padding: EdgeInsets.zero,
-                                    icon: const Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
+                                    icon: Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
                                     color: AppTheme.surfaceLight,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      side: const BorderSide(color: AppTheme.border, width: 0.5),
+                                      side: BorderSide(color: AppTheme.border, width: 0.5),
                                     ),
                                     onSelected: (value) async {
                                       if (value == 'delete') {
@@ -1039,12 +1183,12 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                                           context: context,
                                           builder: (ctx) => AlertDialog(
                                             backgroundColor: AppTheme.surfaceLight,
-                                            title: const Text('Yorumu Sil', style: TextStyle(color: AppTheme.textPrimary)),
-                                            content: const Text('Bu yorumu silmek istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
+                                            title: Text('Yorumu Sil', style: TextStyle(color: AppTheme.textPrimary)),
+                                            content: Text('Bu yorumu silmek istediğinize emin misiniz?', style: TextStyle(color: AppTheme.textSecondary)),
                                             actions: [
                                               TextButton(
                                                 onPressed: () => Navigator.pop(ctx),
-                                                child: const Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+                                                child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
                                               ),
                                               TextButton(
                                                 onPressed: () async {
@@ -1084,7 +1228,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                 ),
               ),
 
-              const Divider(color: AppTheme.border, height: 1),
+              Divider(color: AppTheme.border, height: 1),
 
               // Input box
               Padding(
@@ -1094,10 +1238,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     Expanded(
                       child: TextField(
                         controller: _controller,
-                        style: const TextStyle(color: AppTheme.textPrimary),
+                        style: TextStyle(color: AppTheme.textPrimary),
                         decoration: InputDecoration(
                           hintText: 'Yorum yaz...',
-                          hintStyle: const TextStyle(
+                          hintStyle: TextStyle(
                               color: AppTheme.textSecondary),
                           filled: true,
                           fillColor: AppTheme.surfaceLight,
@@ -1106,12 +1250,12 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(24),
                             borderSide:
-                                const BorderSide(color: AppTheme.border),
+                                BorderSide(color: AppTheme.border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(24),
                             borderSide:
-                                const BorderSide(color: AppTheme.border),
+                                BorderSide(color: AppTheme.border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(24),

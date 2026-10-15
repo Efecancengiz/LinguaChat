@@ -14,6 +14,7 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
   late final StreamSubscription<User?> _authSubscription;
+  StreamSubscription<UserModel?>? _userDocSubscription;
   Timer? _heartbeatTimer;
 
   UserModel? _user;
@@ -25,6 +26,8 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
   String? get error => _error;
   bool get isAuthenticated => _authService.currentUser != null;
   String? get currentUserId => _authService.currentUser?.uid;
+  bool get isAdmin => _user?.isAdmin == true;
+  bool get isPremium => _user?.isPremium == true;
 
   AuthProvider() {
     WidgetsBinding.instance.addObserver(this);
@@ -59,6 +62,15 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
               createdAt: DateTime.now(),
             );
           }
+
+          // Canlı Firestore kullanıcı belgesi dinleyicisi (isAdmin, isPremium anlık güncellenir)
+          _userDocSubscription?.cancel();
+          _userDocSubscription = _firestoreService.userStream(latestUser.uid).listen((updatedUser) {
+            if (updatedUser != null) {
+              _user = updatedUser;
+              notifyListeners();
+            }
+          });
         } catch (e) {
           debugPrint('AuthProvider.authStateChanges fallback error: $e');
           // Fallback if network fails
@@ -85,6 +97,8 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
       } else {
         _stopHeartbeat();
+        _userDocSubscription?.cancel();
+        _userDocSubscription = null;
         MessageListenerService.stop();
         OneSignalService.clearUserId();
         RevenueCatService.logout();
@@ -119,6 +133,7 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _stopHeartbeat();
+    _userDocSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _authSubscription.cancel();
     super.dispose();
@@ -201,40 +216,6 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
   }
-
-  Future<bool> signInWithGoogle() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      final userModel = await _authService.signInWithGoogle();
-      if (userModel != null) {
-        _user = userModel;
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      } else {
-        // Kullanıcı iptal etti
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-    } on FirebaseAuthException catch (e) {
-      _error = _getErrorMessage(e.code);
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      try { await _authService.signOut(); } catch (_) {}
-      _user = null;
-      _error = 'Beklenmeyen Hata: $e';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
   Future<void> signOut() async {
     await _authService.signOut();
     _user = null;
@@ -251,8 +232,42 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
       _isLoading = false;
       notifyListeners();
       return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        _error = 'Bu e-posta adresine kayıtlı bir kullanıcı bulunamadı.';
+      } else if (e.code == 'invalid-email') {
+        _error = 'Geçersiz bir e-posta adresi girdiniz.';
+      } else {
+        _error = e.message ?? 'Şifre sıfırlama e-postası gönderilemedi.';
+      }
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
-      _error = 'Şifre sıfırlama e-postası gönderilemedi.';
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _user = await _authService.signInWithGoogle();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = e.message ?? 'Google ile giriş yapılamadı.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
       _isLoading = false;
       notifyListeners();
       return false;
@@ -277,16 +292,34 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final user = _authService.currentUser;
       if (user != null) {
+        // 1. Rollback için mevcut kullanıcı belgesini yedekle
+        final userDoc = _user;
+        
+        // 2. Firestore kullanıcı belgelerini sil
         await _firestoreService.deleteUser(user.uid);
-        await user.delete();
+        
+        // 3. Auth kullanıcısını silmeyi dene
+        try {
+          await user.delete();
+        } catch (authError) {
+          // Hata durumunda Firestore belgesini geri yükle (Rollback)
+          if (userDoc != null) {
+            await _firestoreService.restoreUser(userDoc);
+          }
+          rethrow;
+        }
+
         _user = null;
+        _isLoading = false;
         notifyListeners();
         return true;
       }
+      _isLoading = false;
+      notifyListeners();
       return false;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
-        _error = 'Bu işlem için yeniden giriş yapmanız gerekiyor. Lütfen çıkış yapıp tekrar giriş yapın.';
+        _error = 'Güvenlik nedeniyle bu işlem için yeniden giriş yapmanız gerekiyor. Lütfen çıkış yapıp tekrar giriş yapın ve ardından hesabı silmeyi deneyin.';
       } else {
         _error = _getErrorMessage(e.code);
       }

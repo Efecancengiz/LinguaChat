@@ -42,7 +42,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent, // the background comes from the parent home_screen
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: AppTheme.surfaceGradient,
         ),
         child: Column(
@@ -61,14 +61,14 @@ class _NetworkScreenState extends State<NetworkScreen> {
                 ),
                 child: TextField(
                   controller: _searchController,
-                  style: const TextStyle(color: AppTheme.textPrimary),
+                  style: TextStyle(color: AppTheme.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Kullanıcı adı ara...',
-                    hintStyle: const TextStyle(color: AppTheme.textSecondary),
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary),
+                    hintStyle: TextStyle(color: AppTheme.textSecondary),
+                    prefixIcon: Icon(Icons.search_rounded, color: AppTheme.textSecondary),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, color: AppTheme.textSecondary),
+                            icon: Icon(Icons.clear_rounded, color: AppTheme.textSecondary),
                             onPressed: () {
                               _searchController.clear();
                               setState(() {
@@ -120,7 +120,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
                             _searchQuery.isEmpty 
                                 ? 'Gösterilecek kullanıcı yok' 
                                 : 'Arama kriterine uygun kullanıcı bulunamadı',
-                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
+                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                           ),
                         ],
                       ),
@@ -159,7 +159,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
                                       children: [
                                         Text(
                                           targetUser.displayName,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             color: AppTheme.textPrimary,
                                             fontWeight: FontWeight.w600,
                                             fontSize: 16,

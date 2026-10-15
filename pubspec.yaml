@@ -1,7 +1,7 @@
 name: linguachat
-description: "LinguaChat - Yabancı Dil Öğrenme & Mesajlaşma Uygulaması"
+description: "WorldPals - Yabancı Dil Öğrenme & Mesajlaşma Uygulaması"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+32
 
 environment:
   sdk: ^3.11.4
@@ -12,7 +12,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_core: ^3.12.1
   firebase_auth: ^5.5.1
-  google_sign_in: ^6.2.1
   cloud_firestore: ^5.6.5
   firebase_storage: ^12.4.4
   provider: ^6.1.2
@@ -38,6 +37,9 @@ dependencies:
   google_mobile_ads: ^8.0.0
   url_launcher: ^6.3.2
   share_plus: ^13.1.0
+  app_tracking_transparency: ^2.0.6+1
+  flutter_fortune_wheel: ^1.3.2
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:
@@ -56,12 +58,10 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#111116"
-  image: "assets/images/app_icon.png"
   android: true
   ios: true
   android_12:
     color: "#111116"
-    image: "assets/images/app_icon.png"
 
 flutter:
   uses-material-design: true

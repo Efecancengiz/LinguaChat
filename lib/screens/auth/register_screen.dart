@@ -75,25 +75,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    if (!_acceptedPrivacyPolicy) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen Gizlilik Politikası\'nı onaylayın.'),
-          backgroundColor: AppTheme.danger,
-        ),
-      );
-      return;
-    }
-
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.signInWithGoogle();
-
-    if (success && mounted) {
-      context.go('/');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,7 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Dil öğrenme yolculuğuna başla',
                     style: TextStyle(
                       color: AppTheme.textSecondary,
@@ -137,7 +118,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   // Name
                   TextFormField(
                     controller: _nameController,
-                    style: const TextStyle(color: AppTheme.textPrimary),
+                    style: TextStyle(color: AppTheme.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Kullanıcı Adı',
                       prefixIcon:
@@ -158,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: const TextStyle(color: AppTheme.textPrimary),
+                    style: TextStyle(color: AppTheme.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'E-posta',
                       prefixIcon:
@@ -180,7 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    style: const TextStyle(color: AppTheme.textPrimary),
+                    style: TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Şifre',
                       prefixIcon:
@@ -212,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirm,
-                    style: const TextStyle(color: AppTheme.textPrimary),
+                    style: TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Şifre Tekrar',
                       prefixIcon: const Icon(Icons.lock_outline,
@@ -289,7 +270,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                       Expanded(
                         child: RichText(
                           text: TextSpan(
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               color: AppTheme.textSecondary,
                               height: 1.3,
@@ -379,78 +360,12 @@ class _RegisterScreenState extends State<RegisterScreen>
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
-                  // OR divider
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('VEYA', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                      ),
-                      Expanded(child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.3))),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Google login button
-                  Consumer<AuthProvider>(
-                    builder: (context, auth, _) {
-                      return Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton(
-                          onPressed: auth.isLoading ? null : _handleGoogleSignIn,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(color: Colors.grey.shade300),
-                            ),
-                          ),
-                          child: auth.isLoading
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.black,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.g_mobiledata, color: Colors.black87, size: 36),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Google ile Kayıt Ol',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      );
-                    },
-                  ),
+
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('Zaten hesabınız var mı? ',
+                      Text('Zaten hesabınız var mı? ',
                           style: TextStyle(color: AppTheme.textSecondary)),
                       GestureDetector(
                         onTap: () => context.pop(),

@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 class AppConstants {
-  static const String appName = 'LinguaChat';
+  static const String appName = 'WorldPals';
   static const String appTagline = 'Dünya ile konuş, dünyanı genişlet';
 
   static const List<Map<String, dynamic>> languageRooms = [
