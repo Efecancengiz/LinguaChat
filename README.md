@@ -1,17 +1,37 @@
-# linguachat
+# 📱 LinguaChat - Mobil Dil Pratik Uygulaması
 
-A new Flutter project.
+LinguaChat, kullanıcıların dil becerilerini interaktif şekilde pratik yaparak geliştirmelerini sağlayan modern, cross-platform bir mobil uygulamadır.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+### 🚀 Temel Özellikler
+- **İnteraktif Pratik Modülleri:** Kullanıcıların aktif pratik yapabileceği ekranlar ve akışlar.
+- **Kullanıcı Yönetimi:** Güvenli kayıt, giriş ve kullanıcı profili yönetimi.
+- **Modern UI/UX:** Temiz, kullanıcı dostu ve akıcı arayüz tasarımı.
+- **Çoklu Platform Desteği:** iOS ve Android ekosistemine tam uyumluluk.
 
-A few resources to get you started if this is your first Flutter project:
+---
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+### 🛠️ Kullanılan Teknolojiler
+- **Framework:** Flutter & Dart
+- **Backend / Bulut:** Firebase (Authentication, Cloud Firestore)
+- **Platformlar:** iOS & Android
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+---
+
+### 📲 Kurulum ve Çalıştırma
+
+Projeyi yerel ortamınızda çalıştırmak için:
+
+```bash
+# Depoyu klonlayın
+git clone [https://github.com/Efecancengiz/LinguaChat.git](https://github.com/Efecancengiz/LinguaChat.git)
+
+# Proje dizinine gidin
+cd LinguaChat
+
+# Bağımlılıkları yükleyin
+flutter pub get
+
+# Uygulamayı çalıştırın
+flutter run
